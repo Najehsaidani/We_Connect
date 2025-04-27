@@ -221,10 +221,10 @@ public ResponseEntity<Map<String, String>> validateResetToken(ResetRequest reset
         return ResponseEntity.badRequest().body(response);
     }
 
+    response.put("token", user.getRestPasswordToken()); // <-- Add this line
     response.put("message", "Reset token is valid");
     return ResponseEntity.ok(response);
 }
-
 // 3. Reset password (ResetPasswordRequest)
 public ResponseEntity<Map<String, String>> resetPassword(ResetPasswordRequest resetPasswordRequest) {
     Map<String, String> response = new HashMap<>();
