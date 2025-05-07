@@ -12,7 +12,6 @@ export type User = {
   firstName: string;
   lastName: string;
   email: string;
-  password: string;
   dateOfBirth: Date;
   phoneNumber: string;
   address: string;

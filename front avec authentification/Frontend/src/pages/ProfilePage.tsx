@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ChangeEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent, useCallback } from 'react';
 import { User, Mail, Phone, MapPin, Book, Briefcase, Calendar, Edit, Save, Camera, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -19,72 +19,72 @@ import {
   TabsTrigger
 } from "@/components/ui/tabs";
 import { userService } from '@/services/userService';
-import useAuth  from '@/hooks/useAuth'; // Add this import
+import useAuth  from '@/hooks/useAuth';
+
+// Interface aligning with backend UserDTO
+interface UserProfile {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  dateOfBirth: Date;
+  phoneNumber: string;
+  address: string;
+  biographie: string;
+  departement: string;
+  image?: string;
+}
 
 const ProfilePage = () => {
   const { toast } = useToast();
-  const { email, refreshAuth } = useAuth(); // Get email from auth context
+  const { email, refreshAuth } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // User profile data
-  const [profile, setProfile] = useState({
+  // State aligned with UserDTO structure
+  const [profile, setProfile] = useState<UserProfile>({
     id: 0,
     firstName: '',
     lastName: '',
     email: '',
-    phone: '',
-    location: '',
-    bio: '',
-    specialization: '',
-    avatar: '/placeholder.svg'
+    dateOfBirth: new Date(),
+    phoneNumber: '',
+    address: '',
+    biographie: '',
+    departement: '',
+    image: '',
+
   });
 
-  // Load user data on mount or email change
+  const loadUserData = useCallback(async () => {
+    try {
+
+      const userData = await userService.getUserByEmail(email);
+      setProfile({
+        ...userData,
+        phoneNumber: userData.phoneNumber || '',
+        address: userData.address || '',
+        biographie: userData.biographie || '',
+        departement: userData.departement || '',
+        dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth) : new Date(),
+        image: userData.image || '', 
+
+
+      });
+    } catch (error) {
+      toast({ title: 'Erreur', description: 'Impossible de charger le profil' });
+    }
+  }, [email, toast]);
+
   useEffect(() => {
-    const loadUserData = async () => {
-      try {
-        // if (!email) {
-        //   toast({ 
-        //     title: 'Erreur', 
-        //     description: 'Utilisateur non authentifié' 
-        //   });
-        //   // return;
-        // }
-
-        const userData = await userService.getUserByEmail(email);
-        console.log(userData); 
-        setProfile({
-          id: userData.id,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          email: userData.email,
-          phone: userData.phoneNumber || '',
-          location: userData.address || '',
-          bio: userData.biographie || '',
-          specialization: userData.departement || '',
-          avatar: userData.image 
-            ? `data:image/jpeg;base64,${userData.image}`
-            : '/placeholder.svg'
-        });
-      } catch (error) {
-        toast({ 
-          title: 'Erreur', 
-          description: 'Impossible de charger le profil' 
-        });
-      }
-    };
-
     loadUserData();
-  }, [email, toast]); // Reload when email changes
+  }, [loadUserData]);
 
-  // Handle profile field update
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setProfile(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handle avatar upload
   const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
     
@@ -93,61 +93,33 @@ const ProfilePage = () => {
 
     try {
       await userService.uploadUserImage(profile.id, file);
-      await refreshAuth(); // Refresh auth data after image update
+      await refreshAuth();
+      await loadUserData(); // Refresh profile data after upload
       
-      // Update avatar preview with uploaded image
-      const reader = new FileReader();
-      reader.onload = () => {
-        setProfile(prev => ({
-          ...prev,
-          avatar: reader.result as string
-        }));
-      };
-      reader.readAsDataURL(file);
-      
-      toast({
-        title: 'Succès',
-        description: 'Photo de profil mise à jour'
-      });
+      toast({ title: 'Succès', description: 'Photo de profil mise à jour' });
     } catch (error) {
-      toast({ 
-        title: 'Erreur', 
-        description: 'Échec de la mise à jour de la photo' 
-      });
+      toast({ title: 'Erreur', description: 'Échec de la mise à jour de la photo' });
     } finally {
       setUploadingImage(false);
     }
   };
 
-  // Save profile (excluding image)
   const handleSaveProfile = async () => {
     try {
-      const { firstName, lastName, email, phone, location, bio, specialization } = profile;
-      
-      await userService.updateUser(profile.id, {
-        firstName,
-        lastName,
-        email,
-        phoneNumber: phone,
-        address: location,
-        biographie: bio,
-        departement: specialization
-      });
-
-      await refreshAuth(); // Refresh auth data after profile update
+      await userService.updateUser(profile.id, profile);
+      await refreshAuth();
+      await loadUserData(); // Refresh data after update
       setIsEditing(false);
-      toast({
-        title: 'Succès',
-        description: 'Profil mis à jour'
-      });
+      toast({ title: 'Succès', description: 'Profil mis à jour' });
     } catch (error) {
-      toast({ 
-        title: 'Erreur', 
-        description: 'Impossible de sauvegarder les modifications' 
-      });
+      toast({ title: 'Erreur', description: 'Impossible de sauvegarder les modifications' });
     }
   };
 
+  // Avatar URL handling
+  const avatarUrl = profile.image 
+    ? `data:image/jpeg;base64,${profile.image}`
+    : '/placeholder.svg';
   // Rest of the component remains the same...
   // (Keep all the JSX rendering logic as it was)
   return (
@@ -158,7 +130,7 @@ const ProfilePage = () => {
         <div className="absolute -bottom-16 left-8 w-32 h-32 rounded-full border-4 border-white bg-white shadow-md">
           <div className="relative w-full h-full rounded-full overflow-hidden bg-muted">
             <img 
-              src={profile.avatar} 
+              src={profile.image ? avatarUrl : '/placeholder.svg'} 
               alt={`${profile.firstName} ${profile.lastName}`} 
               className="w-full h-full object-cover"
             />
@@ -209,110 +181,151 @@ const ProfilePage = () => {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isEditing ? (
-                <div className="space-y-4 animate-fade-in">
-                  <div>
-                    <label htmlFor="firstName" className="block text-sm font-medium mb-1">
-                      Prénom
-                    </label>
-                    <Input
-                      id="firstName"
-                      name="firstName"
-                      value={profile.firstName}
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="lastName" className="block text-sm font-medium mb-1">
-                      Nom
-                    </label>
-                    <Input
-                      id="lastName"
-                      name="lastName"
-                      value={profile.lastName}
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium mb-1">
-                      Email
-                    </label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={profile.email}
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="phone" className="block text-sm font-medium mb-1">
-                      Téléphone
-                    </label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      value={profile.phone}
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="location" className="block text-sm font-medium mb-1">
-                      Localisation
-                    </label>
-                    <Input
-                      id="location"
-                      name="location"
-                      value={profile.location}
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="bio" className="block text-sm font-medium mb-1">
-                      Biographie
-                    </label>
-                    <Textarea
-                      id="bio"
-                      name="bio"
-                      value={profile.bio}
-                      onChange={handleInputChange}
-                      rows={4}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="specialization" className="block text-sm font-medium mb-1">
-                      Spécialisation
-                    </label>
-                    <Input
-                      id="specialization"
-                      name="specialization"
-                      value={profile.specialization}
-                      onChange={handleInputChange}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {/* Regular profile info */}
-                  <div className="flex items-start space-x-2">
-                    <Mail className="w-5 h-5 text-muted-foreground mt-0.5" />
-                    <span>{profile.email}</span>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <Phone className="w-5 h-5 text-muted-foreground mt-0.5" />
-                    <span>{profile.phone}</span>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
-                    <span>{profile.location}</span>
-                  </div>
-                  <div className="pt-2 border-t">
-                    <h4 className="font-medium mb-2">À propos</h4>
-                    <p className="text-muted-foreground">{profile.bio}</p>
-                  </div>
-                </>
-              )}
+            {isEditing ? (
+  <div className="space-y-4 animate-fade-in">
+    {/* First Name */}
+    <div>
+      <label htmlFor="firstName" className="block text-sm font-medium mb-1">
+        Prénom
+      </label>
+      <Input
+        id="firstName"
+        name="firstName"
+        value={profile.firstName}
+        onChange={handleInputChange}
+      />
+    </div>
+
+    {/* Last Name */}
+    <div>
+      <label htmlFor="lastName" className="block text-sm font-medium mb-1">
+        Nom
+      </label>
+      <Input
+        id="lastName"
+        name="lastName"
+        value={profile.lastName}
+        onChange={handleInputChange}
+      />
+    </div>
+
+    {/* Email (Disabled) */}
+    <div>
+      <label htmlFor="email" className="block text-sm font-medium mb-1">
+        Email
+      </label>
+      <Input
+        id="email"
+        name="email"
+        type="email"
+        value={profile.email}
+        onChange={handleInputChange}
+        disabled
+      />
+    </div>
+
+    <div>
+  <label htmlFor="dateOfBirth" className="block text-sm font-medium mb-1">
+    Date de naissance
+  </label>
+  <Input
+    id="dateOfBirth"
+    name="dateOfBirth"
+    type="date"
+    value={profile.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().split('T')[0] : ''}
+    onChange={handleInputChange}
+    max={new Date().toISOString().split('T')[0]} // Prevent future dates
+  />
+</div>
+
+    {/* Phone Number */}
+    <div>
+      <label htmlFor="phoneNumber" className="block text-sm font-medium mb-1">
+        Téléphone
+      </label>
+      <Input
+        id="phoneNumber"
+        name="phoneNumber" // Corrected name
+        value={profile.phoneNumber}
+        onChange={handleInputChange}
+      />
+    </div>
+
+    {/* Address */}
+    <div>
+      <label htmlFor="address" className="block text-sm font-medium mb-1">
+        Localisation
+      </label>
+      <Input
+        id="address"
+        name="address" // Corrected name
+        value={profile.address}
+        onChange={handleInputChange}
+      />
+    </div>
+
+    {/* Biography */}
+    <div>
+      <label htmlFor="biographie" className="block text-sm font-medium mb-1">
+        Biographie
+      </label>
+      <Textarea
+        id="biographie"
+        name="biographie" // Corrected name
+        value={profile.biographie}
+        onChange={handleInputChange}
+        rows={4}
+      />
+    </div>
+
+    {/* Department */}
+    <div>
+      <label htmlFor="departement" className="block text-sm font-medium mb-1">
+        Département
+      </label>
+      <Input
+        id="departement"
+        name="departement"
+        value={profile.departement}
+        onChange={handleInputChange}
+      />
+    </div>
+  </div>
+) : (
+  <>
+    {/* Display Mode */}
+    <div className="flex items-start space-x-2">
+      <Mail className="w-5 h-5 text-muted-foreground mt-0.5" />
+      <span>{profile.email}</span>
+    </div>
+    <div className="flex items-start space-x-2">
+      <Phone className="w-5 h-5 text-muted-foreground mt-0.5" />
+      <span>{profile.phoneNumber || 'Non spécifié'}</span>
+    </div>
+    <div className="flex items-start space-x-2">
+      <MapPin className="w-5 h-5 text-muted-foreground mt-0.5" />
+      <span>{profile.address || 'Non spécifié'}</span>
+    </div>
+    <div className="flex items-start space-x-2">
+  <Calendar className="w-5 h-5 text-muted-foreground mt-0.5" />
+  <span>
+    {profile.dateOfBirth 
+      ? new Date(profile.dateOfBirth).toLocaleDateString('fr-FR', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        })
+      : 'Non spécifié'}
+  </span>
+</div>
+    <div className="pt-2 border-t">
+      <h4 className="font-medium mb-2">À propos</h4>
+      <p className="text-muted-foreground">
+        {profile.biographie || 'Aucune biographie fournie'}
+      </p>
+    </div>
+  </>
+)}
             </CardContent>
           </Card>
           {/* Academic Info Card */}
@@ -326,7 +339,7 @@ const ProfilePage = () => {
                 <Briefcase className="w-5 h-5 text-muted-foreground mt-0.5" />
                 <div>
                   <p className="font-medium">Department</p>
-                  <p className="text-sm text-muted-foreground">{profile.specialization}</p>
+                  <p className="text-sm text-muted-foreground">{profile.departement}</p>
                 </div>
               </div>
              
@@ -406,5 +419,14 @@ const ProfilePage = () => {
     </div>
   );
 };
+const ProfileInfoItem = ({ icon, label, value }: { icon: React.ReactNode, label?: string, value?: string }) => (
+  <div className="flex items-start space-x-2">
+    <span className="w-5 h-5 text-muted-foreground mt-0.5">{icon}</span>
+    <div>
+      {label && <p className="font-medium">{label}</p>}
+      <p className="text-sm text-muted-foreground">{value || 'Non spécifié'}</p>
+    </div>
+  </div>
+);
 
 export default ProfilePage;

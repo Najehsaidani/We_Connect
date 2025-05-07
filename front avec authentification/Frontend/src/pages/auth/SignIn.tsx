@@ -36,6 +36,7 @@ const SignIn = () => {
 
       // Immediately decode and update auth state
       const decoded = decodeToken(response.token);
+      console.log("Decoded token:", decoded);
       const { roles = [] } = decoded;
 
       // Use React Router navigation instead of window.location
