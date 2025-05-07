@@ -9,6 +9,8 @@ import "./global.css";
 
 // Layouts
 import MainLayout from "./layouts/MainLayout";
+import MainLayoutconnect from "./layouts/MainLayoutconnect";
+import Mainlayoutadmin from "./layouts/Mainlayoutadmin";
 
 // Pages
 import HomePage from "./pages/HomePage";
@@ -26,6 +28,9 @@ import ProfilePage from "./pages/ProfilePage";
 import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 
+// Components
+import ProtectedRoute from "./components/ProtectedRoute";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -35,6 +40,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<MainLayout />}>
             <Route index element={<HomePage />} />
             <Route path="auth" element={<AuthPage />}>
@@ -44,18 +50,47 @@ const App = () => (
               <Route path="reset-password" element={<ResetPassword />} />
               <Route path="verify-code" element={<VerifyCode />} />
             </Route>
-            <Route path="forum" element={<ForumPage />} />
-            <Route path="clubs" element={<ClubsPage />} />
-            <Route path="events" element={<EventsPage />} />
-            <Route path="chat" element={<ChatPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-            <Route path="admin" element={<AdminPage />} />
-            <Route path="*" element={<NotFound />} />
           </Route>
+
+          {/* Protected User Routes */}
+          <Route
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  'ROLE_ETUDIANT',
+                  'ROLE_PROFESSEUR',
+                  'ROLE_MODERATEUR'
+                ]}
+              />
+            }
+          >
+            <Route path="/app" element={<MainLayoutconnect />}>
+              <Route path="forum" element={<ForumPage />} />
+              <Route path="clubs" element={<ClubsPage />} />
+              <Route path="events" element={<EventsPage />} />
+              <Route path="chat" element={<ChatPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+            </Route>
+          </Route>
+
+          {/* Protected Admin Routes */}
+          <Route
+            element={
+              <ProtectedRoute allowedRoles={['ROLE_ADMIN']} />
+            }
+          >
+            <Route path="/acces" element={<Mainlayoutadmin />}>
+              <Route path="admin" element={<AdminPage />} />
+            </Route>
+          </Route>
+
+          {/* 404 Route */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
+
 
 export default App;

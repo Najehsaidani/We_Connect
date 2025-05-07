@@ -291,13 +291,13 @@ const EventsPage = () => {
             </button>
           </div>
           
-          <button
+          {/* <button
             onClick={() => setIsCreateEventOpen(true)}
             className="flex items-center px-4 py-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
           >
             <Plus size={18} className="mr-2" />
             Créer un événement
-          </button>
+          </button> */}
         </div>
       </div>
 

@@ -40,11 +40,11 @@ const MainLayout = () => {
   };
 
   const navLinks = [
-    { name: 'Accueil', path: '/' },
-    { name: 'Forum', path: '/forum' },
-    { name: 'Clubs', path: '/clubs' },
-    { name: 'Événements', path: '/events' },
-    { name: 'Chat', path: '/chat' },
+    
+    { name: 'Forum', path: '/app/forum' },
+    { name: 'Clubs', path: '/app/clubs' },
+    { name: 'Événements', path: '/app/events' },
+    // { name: 'Chat', path: '/app/chat' },
   ];
 
   return (
@@ -53,16 +53,31 @@ const MainLayout = () => {
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <nav className="container max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           
-          <Link to="/" className="flex items-center">
+          <Link to="/app/forum" className="flex items-center">
             <span className="text-2xl font-bold bg-gradient-to-r from-forum-primary to-forum-secondary bg-clip-text text-transparent">
               CozyCampus
             </span>
           </Link>
 
           {/* Desktop Navigation - Uncommented and fixed */}
-         
+          <div className="hidden md:flex space-x-4">
+            {navLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`px-3 py-2 rounded-md ${
+                  location.pathname === link.path
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-foreground hover:bg-muted'
+                }`}
+              >
+                {link.name}
+              </Link>
+            ))}
+          </div>
+
           {/* Desktop User Actions - Uncommented and fixed */}
-          {/* <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-4">
             {isAuthenticated ? (
               <>
                 <NotificationCenter />
@@ -80,7 +95,7 @@ const MainLayout = () => {
                   {isUserMenuOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 animate-fade-in z-20">
                       <Link
-                        to="/profile"
+                        to="/app/profile"
                         className="block px-4 py-2 hover:bg-muted transition-colors"
                         onClick={() => setIsUserMenuOpen(false)}
                       >
@@ -101,15 +116,15 @@ const MainLayout = () => {
                 Connexion
               </Link>
             )}
-          </div> */}
+          </div>
 
           {/* Mobile Menu Button */}
-          {/* <button
+          <button
             onClick={toggleMenu}
             className="md:hidden p-2 rounded-md hover:bg-muted transition-colors"
           >
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button> */}
+          </button>
         </nav>
 
         {/* Mobile Menu */}
@@ -131,7 +146,7 @@ const MainLayout = () => {
                 </Link>
               ))}
               
-              {/* {isAuthenticated && (
+              {isAuthenticated && (
                 <>
                   <div className="flex justify-around py-2 border-t border-b border-muted my-2">
                     <NotificationCenter />
@@ -152,7 +167,7 @@ const MainLayout = () => {
                     <LogOut size={18} className="mr-2" /> Déconnexion
                   </button>
                 </>
-              )} */}
+              )}
               
               {!isAuthenticated && (
                 <Link

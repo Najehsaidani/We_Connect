@@ -7,7 +7,7 @@ import FriendSystem from "@/components/FriendSystem";
 import useAuth from "@/hooks/useAuth"; 
 import { authService } from '@/services/authService'; // Add this import
 
-const MainLayout = () => {
+const Mainlayoutadmin = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const location = useLocation();
@@ -60,13 +60,27 @@ const MainLayout = () => {
           </Link>
 
           {/* Desktop Navigation - Uncommented and fixed */}
-         
+          {/* <div className="hidden md:flex space-x-4">
+            {navLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`px-3 py-2 rounded-md ${
+                  location.pathname === link.path
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-foreground hover:bg-muted'
+                }`}
+              >
+                {link.name}
+              </Link>
+            ))}
+          </div> */}
+
           {/* Desktop User Actions - Uncommented and fixed */}
-          {/* <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-4">
             {isAuthenticated ? (
               <>
-                <NotificationCenter />
-                <FriendSystem />
+               
                 <div className="relative">
                   <button
                     onClick={toggleUserMenu}
@@ -79,13 +93,7 @@ const MainLayout = () => {
                   </button>
                   {isUserMenuOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 animate-fade-in z-20">
-                      <Link
-                        to="/profile"
-                        className="block px-4 py-2 hover:bg-muted transition-colors"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      >
-                        Mon profil
-                      </Link>
+                      
                       <button
                         onClick={handleLogout}
                         className="w-full text-left px-4 py-2 text-red-500 hover:bg-muted transition-colors flex items-center"
@@ -101,22 +109,22 @@ const MainLayout = () => {
                 Connexion
               </Link>
             )}
-          </div> */}
+          </div>
 
           {/* Mobile Menu Button */}
-          {/* <button
+          <button
             onClick={toggleMenu}
             className="md:hidden p-2 rounded-md hover:bg-muted transition-colors"
           >
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button> */}
+          </button>
         </nav>
 
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden bg-white py-4 px-4 shadow-inner animate-fade-in">
             <div className="flex flex-col space-y-3">
-              {navLinks.map((link) => (
+              {/* {navLinks.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
@@ -129,22 +137,12 @@ const MainLayout = () => {
                 >
                   {link.name}
                 </Link>
-              ))}
+              ))} */}
               
-              {/* {isAuthenticated && (
+              {isAuthenticated && (
                 <>
-                  <div className="flex justify-around py-2 border-t border-b border-muted my-2">
-                    <NotificationCenter />
-                    <FriendSystem />
-                    <MessageSquare size={20} className="text-muted-foreground" />
-                  </div>
-                  <Link
-                    to="/profile"
-                    className="px-4 py-2 flex items-center rounded-md hover:bg-muted"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <User size={18} className="mr-2" /> Mon profil
-                  </Link>
+                  
+               
                   <button
                     onClick={handleLogout}
                     className="px-4 py-2 flex items-center text-red-500 rounded-md hover:bg-muted"
@@ -152,7 +150,7 @@ const MainLayout = () => {
                     <LogOut size={18} className="mr-2" /> Déconnexion
                   </button>
                 </>
-              )} */}
+              )}
               
               {!isAuthenticated && (
                 <Link
@@ -189,4 +187,4 @@ const MainLayout = () => {
   );
 };
 
-export default MainLayout;
+export default Mainlayoutadmin;

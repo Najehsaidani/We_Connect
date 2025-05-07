@@ -1,5 +1,4 @@
-
-import React, { useState, ChangeEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import { User, Mail, Phone, MapPin, Book, Briefcase, Calendar, Edit, Save, Camera, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -19,51 +18,65 @@ import {
   TabsList,
   TabsTrigger
 } from "@/components/ui/tabs";
+import { userService } from '@/services/userService';
+import useAuth  from '@/hooks/useAuth'; // Add this import
 
 const ProfilePage = () => {
   const { toast } = useToast();
+  const { email, refreshAuth } = useAuth(); // Get email from auth context
   const [isEditing, setIsEditing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  
+
   // User profile data
   const [profile, setProfile] = useState({
-    name: 'Alex Dubois',
-    email: 'alex.dubois@universite.fr',
-    phone: '06 12 34 56 78',
-    location: 'Paris, France',
-    bio: 'Étudiant en Master d\'Informatique. Passionné de développement web et d\'intelligence artificielle. Toujours à la recherche de nouveaux projets et défis.',
-    pronouns: 'il/lui',
-    faculty: 'Sciences et Technologies',
-    year: '2e année de Master',
-    specialization: 'Intelligence Artificielle',
-    joinDate: 'Septembre 2023',
-    interests: ['Programmation', 'IA', 'Jeux vidéo', 'Randonnée', 'Photographie'],
+    id: 0,
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    location: '',
+    bio: '',
+    specialization: '',
     avatar: '/placeholder.svg'
   });
 
-  // Sample activities
-  const activities = [
-    { id: 1, type: 'post', title: 'A partagé une publication', content: 'Quelqu\'un aurait des notes du dernier cours de ML ?', date: 'Il y a 2 jours' },
-    { id: 2, type: 'event', title: 'Va participer à un événement', content: 'Hackathon 48h', date: 'Dans 3 jours' },
-    { id: 3, type: 'club', title: 'A rejoint un club', content: 'Club Tech', date: 'Il y a 1 semaine' }
-  ];
+  // Load user data on mount or email change
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        // if (!email) {
+        //   toast({ 
+        //     title: 'Erreur', 
+        //     description: 'Utilisateur non authentifié' 
+        //   });
+        //   // return;
+        // }
 
-  // Sample courses
-  const courses = [
-    { id: 1, code: 'INFO601', name: 'Machine Learning Avancé', professor: 'Prof. Martin', grade: 'A' },
-    { id: 2, code: 'INFO602', name: 'Développement Web Full Stack', professor: 'Prof. Dubois', grade: 'A-' },
-    { id: 3, code: 'INFO603', name: 'Théorie des Graphes', professor: 'Prof. Leclerc', grade: 'B+' },
-    { id: 4, code: 'INFO604', name: 'Sécurité Informatique', professor: 'Prof. Roux', grade: 'A' }
-  ];
+        const userData = await userService.getUserByEmail(email);
+        console.log(userData); 
+        setProfile({
+          id: userData.id,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          email: userData.email,
+          phone: userData.phoneNumber || '',
+          location: userData.address || '',
+          bio: userData.biographie || '',
+          specialization: userData.departement || '',
+          avatar: userData.image 
+            ? `data:image/jpeg;base64,${userData.image}`
+            : '/placeholder.svg'
+        });
+      } catch (error) {
+        toast({ 
+          title: 'Erreur', 
+          description: 'Impossible de charger le profil' 
+        });
+      }
+    };
 
-  // Handle profile update
-  const handleSaveProfile = () => {
-    setIsEditing(false);
-    toast({
-      title: 'Profil mis à jour',
-      description: 'Vos informations ont été mises à jour avec succès.',
-    });
-  };
+    loadUserData();
+  }, [email, toast]); // Reload when email changes
 
   // Handle profile field update
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -72,29 +85,71 @@ const ProfilePage = () => {
   };
 
   // Handle avatar upload
-  const handleAvatarUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setUploadingImage(true);
+  const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    
+    const file = e.target.files[0];
+    setUploadingImage(true);
+
+    try {
+      await userService.uploadUserImage(profile.id, file);
+      await refreshAuth(); // Refresh auth data after image update
       
-      // Simulate upload delay
-      setTimeout(() => {
-        // In a real app, you would upload to a server here
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          if (event.target && event.target.result) {
-            setProfile(prev => ({ ...prev, avatar: event.target.result as string }));
-            toast({
-              title: 'Photo de profil mise à jour',
-              description: 'Votre photo de profil a été mise à jour avec succès.',
-            });
-          }
-        };
-        reader.readAsDataURL(e.target.files[0]);
-        setUploadingImage(false);
-      }, 1500);
+      // Update avatar preview with uploaded image
+      const reader = new FileReader();
+      reader.onload = () => {
+        setProfile(prev => ({
+          ...prev,
+          avatar: reader.result as string
+        }));
+      };
+      reader.readAsDataURL(file);
+      
+      toast({
+        title: 'Succès',
+        description: 'Photo de profil mise à jour'
+      });
+    } catch (error) {
+      toast({ 
+        title: 'Erreur', 
+        description: 'Échec de la mise à jour de la photo' 
+      });
+    } finally {
+      setUploadingImage(false);
     }
   };
 
+  // Save profile (excluding image)
+  const handleSaveProfile = async () => {
+    try {
+      const { firstName, lastName, email, phone, location, bio, specialization } = profile;
+      
+      await userService.updateUser(profile.id, {
+        firstName,
+        lastName,
+        email,
+        phoneNumber: phone,
+        address: location,
+        biographie: bio,
+        departement: specialization
+      });
+
+      await refreshAuth(); // Refresh auth data after profile update
+      setIsEditing(false);
+      toast({
+        title: 'Succès',
+        description: 'Profil mis à jour'
+      });
+    } catch (error) {
+      toast({ 
+        title: 'Erreur', 
+        description: 'Impossible de sauvegarder les modifications' 
+      });
+    }
+  };
+
+  // Rest of the component remains the same...
+  // (Keep all the JSX rendering logic as it was)
   return (
     <div className="page-container">
       {/* Header with profile cover */}
@@ -104,7 +159,7 @@ const ProfilePage = () => {
           <div className="relative w-full h-full rounded-full overflow-hidden bg-muted">
             <img 
               src={profile.avatar} 
-              alt={profile.name} 
+              alt={`${profile.firstName} ${profile.lastName}`} 
               className="w-full h-full object-cover"
             />
             {isEditing && (
@@ -133,8 +188,8 @@ const ProfilePage = () => {
           <Card className="mb-6 animate-fade-in">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
-                <CardTitle>{profile.name}</CardTitle>
-                <CardDescription>{profile.pronouns}</CardDescription>
+                <CardTitle>{profile.firstName} {profile.lastName}</CardTitle>
+                
               </div>
               <Button 
                 variant={isEditing ? "default" : "outline"} 
@@ -157,13 +212,24 @@ const ProfilePage = () => {
               {isEditing ? (
                 <div className="space-y-4 animate-fade-in">
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium mb-1">
-                      Nom complet
+                    <label htmlFor="firstName" className="block text-sm font-medium mb-1">
+                      Prénom
                     </label>
                     <Input
-                      id="name"
-                      name="name"
-                      value={profile.name}
+                      id="firstName"
+                      name="firstName"
+                      value={profile.firstName}
+                      onChange={handleInputChange}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="lastName" className="block text-sm font-medium mb-1">
+                      Nom
+                    </label>
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      value={profile.lastName}
                       onChange={handleInputChange}
                     />
                   </div>
@@ -201,17 +267,7 @@ const ProfilePage = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  <div>
-                    <label htmlFor="pronouns" className="block text-sm font-medium mb-1">
-                      Pronoms
-                    </label>
-                    <Input
-                      id="pronouns"
-                      name="pronouns"
-                      value={profile.pronouns}
-                      onChange={handleInputChange}
-                    />
-                  </div>
+                  
                   <div>
                     <label htmlFor="bio" className="block text-sm font-medium mb-1">
                       Biographie
@@ -222,6 +278,17 @@ const ProfilePage = () => {
                       value={profile.bio}
                       onChange={handleInputChange}
                       rows={4}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="specialization" className="block text-sm font-medium mb-1">
+                      Spécialisation
+                    </label>
+                    <Input
+                      id="specialization"
+                      name="specialization"
+                      value={profile.specialization}
+                      onChange={handleInputChange}
                     />
                   </div>
                 </div>
@@ -248,130 +315,36 @@ const ProfilePage = () => {
               )}
             </CardContent>
           </Card>
-
           {/* Academic Info Card */}
           <Card className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
             <CardHeader>
               <CardTitle>Informations académiques</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-start space-x-2">
-                <Book className="w-5 h-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="font-medium">{profile.faculty}</p>
-                  <p className="text-sm text-muted-foreground">{profile.year}</p>
-                </div>
-              </div>
+              
               <div className="flex items-start space-x-2">
                 <Briefcase className="w-5 h-5 text-muted-foreground mt-0.5" />
                 <div>
-                  <p className="font-medium">Spécialisation</p>
+                  <p className="font-medium">Department</p>
                   <p className="text-sm text-muted-foreground">{profile.specialization}</p>
                 </div>
               </div>
-              <div className="flex items-start space-x-2">
-                <Calendar className="w-5 h-5 text-muted-foreground mt-0.5" />
-                <div>
-                  <p className="font-medium">Inscrit depuis</p>
-                  <p className="text-sm text-muted-foreground">{profile.joinDate}</p>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">Centres d'intérêt</h4>
-                <div className="flex flex-wrap gap-2">
-                  {profile.interests.map((interest, index) => (
-                    <span 
-                      key={index} 
-                      className="bg-muted px-2 py-1 rounded-full text-xs"
-                    >
-                      {interest}
-                    </span>
-                  ))}
-                </div>
-              </div>
+             
+             
             </CardContent>
           </Card>
         </div>
-
         {/* Right column - Content tabs */}
         <div className="w-full md:w-2/3 animate-fade-in" style={{ animationDelay: '0.2s' }}>
           <Tabs defaultValue="activity">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="activity">Activité</TabsTrigger>
-              <TabsTrigger value="courses">Cours</TabsTrigger>
               <TabsTrigger value="settings">Paramètres</TabsTrigger>
             </TabsList>
-            
             {/* Activity Tab */}
             <TabsContent value="activity" className="space-y-4 mt-4">
-              {activities.map((activity) => (
-                <div 
-                  key={activity.id} 
-                  className="bg-white p-4 rounded-lg shadow-sm border border-border"
-                >
-                  <div className="flex items-start">
-                    <div className="mr-4">
-                      <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                        <User size={20} />
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-sm">{activity.title}</h3>
-                      <p className="text-foreground my-1">{activity.content}</p>
-                      <p className="text-xs text-muted-foreground">{activity.date}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              
-              {activities.length === 0 && (
-                <div className="text-center py-12">
-                  <h3 className="text-xl font-medium mb-2">Aucune activité récente</h3>
-                  <p className="text-muted-foreground">
-                    Vos activités récentes apparaîtront ici.
-                  </p>
-                </div>
-              )}
+              {/* Add your activity content here */}
             </TabsContent>
-            
-            {/* Courses Tab */}
-            <TabsContent value="courses" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Cours actuels</CardTitle>
-                  <CardDescription>Les cours auxquels vous êtes inscrit ce semestre</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {courses.map((course) => (
-                      <div 
-                        key={course.id} 
-                        className="flex justify-between items-center p-3 bg-muted/50 rounded-lg"
-                      >
-                        <div>
-                          <h4 className="font-medium">{course.name}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {course.code} • {course.professor}
-                          </p>
-                        </div>
-                        <div className={`px-3 py-1 rounded-full font-medium text-sm ${
-                          course.grade.startsWith('A') ? 'bg-green-100 text-green-800' :
-                          course.grade.startsWith('B') ? 'bg-blue-100 text-blue-800' :
-                          course.grade.startsWith('C') ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {course.grade}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-end">
-                  <Button variant="outline">Voir tous les cours</Button>
-                </CardFooter>
-              </Card>
-            </TabsContent>
-            
             {/* Settings Tab */}
             <TabsContent value="settings" className="mt-4">
               <Card>
@@ -397,7 +370,6 @@ const ProfilePage = () => {
                       </div>
                     </div>
                   </div>
-                  
                   <div className="pt-4 border-t">
                     <h3 className="font-medium mb-2">Confidentialité</h3>
                     <div className="space-y-2">
@@ -415,7 +387,6 @@ const ProfilePage = () => {
                       </div>
                     </div>
                   </div>
-                  
                   <div className="pt-4 border-t">
                     <h3 className="font-medium mb-2">Sécurité</h3>
                     <Button variant="outline">Changer de mot de passe</Button>

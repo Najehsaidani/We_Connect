@@ -3,7 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { MessageSquare, Users, Calendar, ChevronRight } from 'lucide-react';
 
-const HomePage = () => {
+const fenetrePage = () => {
   // Features section data
   const features = [
     {
@@ -118,4 +118,4 @@ const HomePage = () => {
   );
 };
 
-export default HomePage;
+export default fenetrePage ;
