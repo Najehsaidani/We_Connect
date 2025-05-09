@@ -55,7 +55,7 @@ const MainLayout = () => {
           
           <Link to="/app/forum" className="flex items-center">
             <span className="text-2xl font-bold bg-gradient-to-r from-forum-primary to-forum-secondary bg-clip-text text-transparent">
-              CozyCampus
+              We_Connect
             </span>
           </Link>
 
@@ -194,7 +194,7 @@ const MainLayout = () => {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-4 md:mb-0">
               <p className="text-sm text-muted-foreground">
-                © 2025 CozyCampus - Votre forum universitaire
+                © 2025 We_Connect - Votre forum universitaire
               </p>
             </div>
           </div>

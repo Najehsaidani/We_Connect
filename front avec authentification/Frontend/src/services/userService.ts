@@ -52,13 +52,13 @@ export const userService = {
   uploadUserImage: async (id: number, file: File) => {
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', file);  // Changed from 'file' to 'image'
       
-      await apiClient.put(`/users/update/${id}`, formData, {
+      await apiClient.post(`/users/${id}/upload`, formData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
+            'Content-Type': 'multipart/form-data'
         }
-      });
+    });
     } catch (error) {
       throw new Error(error.response?.data?.error || 'Failed to upload image');
     }

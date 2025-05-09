@@ -39,13 +39,7 @@ const Mainlayoutadmin = () => {
     }
   };
 
-  const navLinks = [
-    { name: 'Accueil', path: '/' },
-    { name: 'Forum', path: '/forum' },
-    { name: 'Clubs', path: '/clubs' },
-    { name: 'Événements', path: '/events' },
-    { name: 'Chat', path: '/chat' },
-  ];
+ 
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -53,9 +47,9 @@ const Mainlayoutadmin = () => {
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <nav className="container max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           
-          <Link to="/" className="flex items-center">
+          <Link to="/acces/admin" className="flex items-center">
             <span className="text-2xl font-bold bg-gradient-to-r from-forum-primary to-forum-secondary bg-clip-text text-transparent">
-              CozyCampus
+              We_Connect
             </span>
           </Link>
 
@@ -177,7 +171,7 @@ const Mainlayoutadmin = () => {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-4 md:mb-0">
               <p className="text-sm text-muted-foreground">
-                © 2025 CozyCampus - Votre forum universitaire
+                © 2025 We_Connect - Votre forum universitaire
               </p>
             </div>
           </div>

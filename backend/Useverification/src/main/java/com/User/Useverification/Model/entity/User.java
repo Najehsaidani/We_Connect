@@ -36,6 +36,7 @@ public class User implements UserDetails {
     
     private String departement;
     private String biographie;
+    @Column(length = 1024)
     private String image;
 
     @Enumerated(EnumType.STRING)

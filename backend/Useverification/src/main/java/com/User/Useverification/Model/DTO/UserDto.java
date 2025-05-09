@@ -20,7 +20,7 @@ public class UserDto {
     private String address;
     private String departement;
     private String biographie;
-    private String image; 
+
    
   
 
@@ -41,7 +41,7 @@ public class UserDto {
             .address(user.getAddress())
             .departement(user.getDepartement())
             .biographie(user.getBiographie())
-            .image(user.getImage())
+
             .build();
     }
 

@@ -52,7 +52,7 @@ const ProfilePage = () => {
     address: '',
     biographie: '',
     departement: '',
-    image: '',
+    
 
   });
 
@@ -85,24 +85,35 @@ const ProfilePage = () => {
     setProfile(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    
-    const file = e.target.files[0];
-    setUploadingImage(true);
+// Improved handleAvatarUpload with validation
+const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  if (!e.target.files?.length) return;
+  
+  const file = e.target.files[0];
+  if (file.size > 5 * 1024 * 1024) {
+    toast({ title: 'Error', description: 'File size must be less than 5MB' });
+    return;
+  }
+  
+  if (!['image/jpeg', 'image/png'].includes(file.type)) {
+    toast({ title: 'Error', description: 'Only JPEG/PNG files allowed' });
+    return;
+  }
 
-    try {
-      await userService.uploadUserImage(profile.id, file);
-      await refreshAuth();
-      await loadUserData(); // Refresh profile data after upload
-      
-      toast({ title: 'Succès', description: 'Photo de profil mise à jour' });
-    } catch (error) {
-      toast({ title: 'Erreur', description: 'Échec de la mise à jour de la photo' });
-    } finally {
-      setUploadingImage(false);
-    }
-  };
+  setUploadingImage(true);
+
+  try {
+    await userService.uploadUserImage(profile.id, file);
+    await refreshAuth();
+    await loadUserData();
+    toast({ title: 'Success', description: 'Profile image updated' });
+  } catch (error) {
+    toast({ title: 'Error', description: error.message || 'Failed to update image' });
+  } finally {
+    setUploadingImage(false);
+    e.target.value = ''; // Reset input to allow re-uploads
+  }
+};
 
   const handleSaveProfile = async () => {
     try {
@@ -117,9 +128,7 @@ const ProfilePage = () => {
   };
 
   // Avatar URL handling
-  const avatarUrl = profile.image 
-    ? `data:image/jpeg;base64,${profile.image}`
-    : '/placeholder.svg';
+ const avatarUrl = profile.image;
   // Rest of the component remains the same...
   // (Keep all the JSX rendering logic as it was)
   return (

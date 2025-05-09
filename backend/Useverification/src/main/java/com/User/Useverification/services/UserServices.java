@@ -8,7 +8,10 @@ import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.User.Useverification.Model.DTO.ProfileUpdateDTO;
 import com.User.Useverification.Model.DTO.UserDto;
 import com.User.Useverification.Model.entity.Role;
 import com.User.Useverification.Model.entity.User;
@@ -21,7 +24,10 @@ import com.User.Useverification.Request.VerifRequest;
 import com.User.Useverification.Request.ResetRequest;
 import com.User.Useverification.Response.ResponseUser;
 import com.User.Useverification.Security.JwtTokenUtil;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.*;
 
 import lombok.RequiredArgsConstructor;
 
@@ -285,12 +291,10 @@ public class UserServices {
         return ResponseEntity.ok(response);
     }
 
-    public ResponseEntity<?> updateUser(Long id, UserDto userDto) {
+    public ResponseEntity<?> updateUser(Long id,ProfileUpdateDTO userDto) {
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
         user.setFirstName(userDto.getFirstName());
         user.setLastName(userDto.getLastName());
-        user.setEmail(userDto.getEmail());
-        user.setPassword(passwordEncoder.encode(userDto.getPassword()));
         user.setPhoneNumber(userDto.getPhoneNumber());
         user.setDateOfBirth(userDto.getDateOfBirth());
         user.setAddress(userDto.getAddress());
@@ -319,4 +323,42 @@ public class UserServices {
         .map(user -> UserDto.toDTO(user))
         .collect(Collectors.toList());
 }
+private boolean isImageFile(MultipartFile file) {
+    String contentType = file.getContentType();
+    return contentType != null && contentType.startsWith("image/");
+}
+public String uploadImage(Long userId, MultipartFile file) throws IOException {
+    Optional<User> userOptional = userRepository.findById(userId);
+    if (userOptional.isEmpty()) {
+        throw new RuntimeException("User not found");
+    }
+
+    if (!isImageFile(file)) {
+        throw new IllegalArgumentException("Only image files are allowed.");
+    }
+
+    User user = userOptional.get();
+
+    // Use absolute path for reliability
+    Path uploadPath = Paths.get(System.getProperty("user.dir"), "uploads");
+    if (!Files.exists(uploadPath)) {
+        Files.createDirectories(uploadPath);
+    }
+
+    String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
+    Path filePath = uploadPath.resolve(filename);
+    Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+    // Save full URL instead of just filename
+    String fileUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+            .path("/uploads/")
+            .path(filename)
+            .toUriString();
+
+    user.setImage(fileUrl); // Update User entity to store full URL
+    userRepository.save(user);
+
+    return fileUrl;
+}
+
 }
