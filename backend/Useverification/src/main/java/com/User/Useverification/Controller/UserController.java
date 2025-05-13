@@ -1,20 +1,26 @@
 package com.User.Useverification.Controller;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-import com.User.Useverification.Model.DTO.ProfileUpdateDTO;
-import com.User.Useverification.Model.DTO.UserDto;
-import com.User.Useverification.Model.entity.User;
-
-import com.User.Useverification.services.UserServices;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.User.Useverification.Model.DTO.ProfileUpdateDTO;
+import com.User.Useverification.Model.entity.User;
+import com.User.Useverification.Request.ChangePasswordRequest;
+import com.User.Useverification.services.UserServices;
 
 @RestController
 @RequestMapping("/api/users/")
@@ -27,6 +33,14 @@ public class UserController {
         this.userService = userService;
         
     }
+    @PostMapping("/change-password")
+    public ResponseEntity<String> changePassword(@RequestBody ChangePasswordRequest request) {
+        try {
+            userService.changePassword(request);
+            return ResponseEntity.ok("Password updated successfully");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }}
 
     @PutMapping("/update/{id}")
     public ResponseEntity<?> updateUserDto(@PathVariable Long id, @RequestBody ProfileUpdateDTO userDto) {

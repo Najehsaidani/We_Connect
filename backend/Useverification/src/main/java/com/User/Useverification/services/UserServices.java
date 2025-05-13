@@ -1,8 +1,19 @@
 package com.User.Useverification.services;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
@@ -17,17 +28,14 @@ import com.User.Useverification.Model.entity.Role;
 import com.User.Useverification.Model.entity.User;
 import com.User.Useverification.Model.repository.RoleRepository;
 import com.User.Useverification.Model.repository.UserRepository;
+import com.User.Useverification.Request.ChangePasswordRequest;
 import com.User.Useverification.Request.LoginRequest;
 import com.User.Useverification.Request.RegisterRequest;
 import com.User.Useverification.Request.ResetPasswordRequest;
-import com.User.Useverification.Request.VerifRequest;
 import com.User.Useverification.Request.ResetRequest;
+import com.User.Useverification.Request.VerifRequest;
 import com.User.Useverification.Response.ResponseUser;
 import com.User.Useverification.Security.JwtTokenUtil;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.nio.file.*;
 
 import lombok.RequiredArgsConstructor;
 
@@ -309,19 +317,43 @@ public class UserServices {
         userRepository.deleteById(id);
         return "User deleted";
     }
-
+    
     public User getUser(Long id) {
         return userRepository.findById(id).orElse(null);
     }
     public User getUserByEmail(String email) {
         return userRepository.findByEmail(email);
     }
-
+    
    public List<UserDto> getAllUsers() {
     return userRepository.findAll()
         .stream()
         .map(user -> UserDto.toDTO(user))
         .collect(Collectors.toList());
+}
+public void changePassword(ChangePasswordRequest request) {
+    // 1. Validate required fields
+    if (request.getEmail() == null || request.getCurrentPassword() == null || 
+        request.getNewPassword() == null || request.getConfirmationPassword() == null) {
+        throw new IllegalArgumentException("Tous les champs sont requis");
+    }
+
+    // 2. Fetch user by email
+    User user = userRepository.findByEmail(request.getEmail());
+
+    // 3. Validate current password
+    if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+        throw new IllegalArgumentException("Mot de passe actuel incorrect");
+    }
+
+    // 4. Validate password match
+    if (!request.getNewPassword().equals(request.getConfirmationPassword())) {
+        throw new IllegalArgumentException("Les nouveaux mots de passe ne correspondent pas");
+    }
+
+    // 5. Update password
+    user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+    userRepository.save(user);
 }
 private boolean isImageFile(MultipartFile file) {
     String contentType = file.getContentType();
@@ -357,6 +389,7 @@ public String uploadImage(Long userId, MultipartFile file) throws IOException {
 
     user.setImage(fileUrl); // Update User entity to store full URL
     userRepository.save(user);
+    
 
     return fileUrl;
 }

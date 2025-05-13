@@ -4,6 +4,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
+
+
 import { 
   Card,
   CardContent,
@@ -36,6 +39,8 @@ interface UserProfile {
 }
 
 const ProfilePage = () => {
+
+  const [isModalOpen, setModalOpen] = useState(false);  
   const { toast } = useToast();
   const { email, refreshAuth } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -411,13 +416,14 @@ const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
                   </div>
                   <div className="pt-4 border-t">
                     <h3 className="font-medium mb-2">Sécurité</h3>
-                    <Button variant="outline">Changer de mot de passe</Button>
+                    <Button variant="outline" onClick={() => setModalOpen(true)}>Changer de mot de passe</Button>
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-between">
                   <Button variant="outline" className="text-destructive">
                     <X size={16} className="mr-1" /> Désactiver le compte
                   </Button>
+                  <ChangePasswordModal open={isModalOpen} onClose={() => setModalOpen(false)} email={email}/>
                   <Button>Enregistrer les modifications</Button>
                 </CardFooter>
               </Card>
