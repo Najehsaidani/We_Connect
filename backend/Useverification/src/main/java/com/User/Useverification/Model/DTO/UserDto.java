@@ -4,10 +4,7 @@ import java.util.Date;
 
 import com.User.Useverification.Model.entity.User;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data

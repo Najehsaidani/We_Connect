@@ -1,8 +1,9 @@
 package com.example.forum.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
-import javax.validation.constraints.Size;
-import javax.validation.constraints.NotBlank;
+
 
 @Data
 public class PostRequest {

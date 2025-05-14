@@ -25,7 +25,7 @@ public class TokenBlacklistService {
         return true;
     }
 
-    @Scheduled(fixedRate = 60000) // Clean up every minute
+    @Scheduled(fixedRate = 60000) // Run every minute
     public void cleanupExpiredTokens() {
         long now = System.currentTimeMillis();
         blacklist.entrySet().removeIf(entry -> entry.getValue() < now);
