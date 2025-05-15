@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/categories")
-@CrossOrigin("*") // autorise les requêtes de tous les domaines (utile pour le front)
+
 public class CategoryController {
 
     @Autowired

@@ -18,7 +18,7 @@ public class ClubDto {
     private Long createurId;
     private Long categoryId;
     private EtatClub etat;
-       private int members;  // Le nombre de membres
+    private int members;  // Le nombre de membres
     private String banner; // URL ou chemin de la bannière
     private String profilePhoto;
 }

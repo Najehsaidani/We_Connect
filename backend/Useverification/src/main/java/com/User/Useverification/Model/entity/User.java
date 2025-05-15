@@ -10,6 +10,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import com.User.Useverification.enums.Status;
+
 @Table(name="user")
 @Entity
 @NoArgsConstructor
@@ -18,10 +20,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 @Builder
 
 public class User implements UserDetails {
-    public enum Status {
-        ACTIF, SUSPENDU, BLOQUE
-    }
-
+   
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

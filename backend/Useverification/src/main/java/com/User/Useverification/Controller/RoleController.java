@@ -10,12 +10,16 @@ import com.User.Useverification.Request.RoleAssignmentRequest;
 import com.User.Useverification.services.RoleService;
 
 import com.User.Useverification.Request.StatusUpdateRequest;
+import com.User.Useverification.enums.Status;
 import com.User.Useverification.Model.entity.User;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
 
 @RestController
-@RequestMapping("/api/admin/users")
+@RequestMapping("/api/admin")
 @RequiredArgsConstructor
 public class RoleController {
     private final RoleService roleService;
@@ -23,7 +27,7 @@ public class RoleController {
 
 
     
-    @PutMapping("/{id}/role")
+    @PutMapping("/users/{id}/role")
     public ResponseEntity<Map<String,String>> assignSingleRole(
             @PathVariable Long id,
             @RequestBody RoleAssignmentRequest request) {
@@ -32,13 +36,13 @@ public class RoleController {
     }
 
     
-    @GetMapping("/{id}/role")
+    @GetMapping("/users/{id}/role")
     public ResponseEntity<Map<String, String>> getRole(@PathVariable Long id) {
         String role = roleService.getUserRole(id);
         return ResponseEntity.ok(Map.of("role", role));
     }
 
-    @PostMapping("/{id}/Status")
+    @PostMapping("/users/{id}/Status")
     public ResponseEntity<?> updateUserStatus(
             @PathVariable Long id,
             @RequestBody StatusUpdateRequest statusUpdateRequest) {
@@ -46,9 +50,9 @@ public class RoleController {
             User user = userRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            User.Status newStatus;
+            Status newStatus;
             try {
-                newStatus = User.Status.valueOf(statusUpdateRequest.getStatus().toUpperCase());
+                newStatus = Status.valueOf(statusUpdateRequest.getStatus().toUpperCase());
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().body("Invalid status value");
             }
@@ -61,5 +65,15 @@ public class RoleController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+    @GetMapping("/roles")
+    public ResponseEntity<?> getAllRoles() {
+        try {
+            return ResponseEntity.ok(roleService.getAllRoles());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    
+    
 
 }

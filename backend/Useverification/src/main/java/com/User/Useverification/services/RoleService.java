@@ -1,6 +1,8 @@
 package com.User.Useverification.services;
 
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
 import com.User.Useverification.Model.entity.Role;
@@ -35,5 +37,9 @@ public class RoleService {
                 .findFirst()
                 .map(Role::getName)
                 .orElse("No role");
+    }
+
+    public List<Role> getAllRoles() {
+        return roleRepository.findAll();
     }
 }
