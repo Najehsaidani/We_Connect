@@ -20,14 +20,14 @@ const ResetPassword = () => {
   const [errorMessage, setErrorMessage] = useState('');
 
   // Extract email and token from URL query params
-  const { email, fromProfile } = location.state || {};
+  const { email } = location.state || {};
 
   // Validate presence of required route state
   useEffect(() => {
-    if (!email && !fromProfile) {
+    if (!email) {
       navigate('/auth/forgot-password');
     }
-  }, [email, fromProfile, navigate]);
+  }, [email, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

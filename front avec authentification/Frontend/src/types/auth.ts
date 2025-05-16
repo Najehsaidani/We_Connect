@@ -27,10 +27,3 @@ export interface LoginRequest {
     newPassword: string;
     confirmPassword: string;
   }
-
-export interface ChangePasswordRequest {
-  email: string;
-  currentPassword: string;
-  newPassword: string;
-  confirmationPassword: string;
-}

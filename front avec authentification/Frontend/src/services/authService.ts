@@ -1,6 +1,6 @@
 // src/services/authService.ts
 import apiClient from './api';
-import { LoginRequest, RegisterRequest, VerifRequest, ChangePasswordRequest } from '../types/auth';
+import { LoginRequest, RegisterRequest, VerifRequest } from '../types/auth';
 import { decodeToken, isTokenExpired } from '@/utils/jwt';
 
 export const authService = {
@@ -24,9 +24,6 @@ export const authService = {
       throw new Error(error.response?.data?.message || 'Registration failed');
     }
   },
-  
-
-
 
   sendOtp: async (email: string) => {
     try {
