@@ -3,11 +3,9 @@ package com.User.Useverification.Model.DTO;
 import java.util.Date;
 
 import com.User.Useverification.Model.entity.User;
+import com.User.Useverification.enums.Status;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
@@ -23,6 +21,7 @@ public class UserDto {
     private String address;
     private String departement;
     private String biographie;
+    private Status status;
 
    
   
@@ -44,6 +43,7 @@ public class UserDto {
             .address(user.getAddress())
             .departement(user.getDepartement())
             .biographie(user.getBiographie())
+            .status(user.getStatus())
 
             .build();
     }

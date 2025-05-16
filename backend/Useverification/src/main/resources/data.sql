@@ -1,4 +1,0 @@
--- INSERT INTO role (name) VALUES ('ROLE_ADMIN');
--- INSERT INTO role (name) VALUES ('ROLE_ETUDIANT');
--- INSERT INTO role (name) VALUES ('ROLE_PROFESSEUR');
--- INSERT INTO role (name) VALUES ('ROLE_MODERATEUR');c:\Users\Najeh Saidani\Downloads\mydatabase.sql
