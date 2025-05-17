@@ -4,8 +4,8 @@ import com.example.weconnect.client.ClubClient;
 import com.example.weconnect.client.UserClient;
 import com.example.weconnect.dto.ClubDTO;
 import com.example.weconnect.dto.UserDTO;
-import com.example.weconnect.model.EventClub;
-import com.example.weconnect.repository.EventClubRepository;
+import com.example.weconnect.model.Event;
+import com.example.weconnect.repository.EventRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,19 +13,19 @@ import java.util.List;
 
 @Service
 @Transactional
-public class EventClubService {
+public class EventService {
 
-    private final EventClubRepository repo;
+    private final EventRepository repo;
     private final UserClient userClient;
     private final ClubClient clubClient;
 
-    public EventClubService(EventClubRepository repo, UserClient userClient, ClubClient clubClient) {
+    public EventService(EventRepository repo, UserClient userClient, ClubClient clubClient) {
         this.repo = repo;
         this.userClient = userClient;
         this.clubClient = clubClient;
     }
 
-    public EventClub create(EventClub e, Long createurId) {
+    public Event create(Event e, Long createurId) {
         // Vérifier que le user existe via userClient
         UserDTO user = userClient.getUserById(createurId);
         if (user == null) {
@@ -46,16 +46,16 @@ public class EventClubService {
         return repo.save(e);
     }
 
-    public List<EventClub> findAll() {
+    public List<Event> findAll() {
         return repo.findAll();
     }
 
-    public List<EventClub> search(String query) {
+    public List<Event> search(String query) {
         return repo.findByTitreContainingIgnoreCaseOrLieuContainingIgnoreCase(query, query);
     }
 
-    public EventClub update(Long id, EventClub data, Long createurId) {
-        EventClub e = repo.findById(id)
+    public Event update(Long id, Event data, Long createurId) {
+        Event e = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Event not found"));
 
         // Vérifier que seul le créateur peut modifier
@@ -85,7 +85,7 @@ public class EventClubService {
     }
 
     public void delete(Long id, Long createurId) {
-        EventClub e = repo.findById(id)
+        Event e = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Event not found"));
         if (!e.getCreateurId().equals(createurId)) {
             throw new RuntimeException("Forbidden: not the creator");

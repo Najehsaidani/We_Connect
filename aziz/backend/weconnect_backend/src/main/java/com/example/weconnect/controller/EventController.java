@@ -1,29 +1,29 @@
 package com.example.weconnect.controller;
 
-import com.example.weconnect.model.EventClub;
-import com.example.weconnect.service.EventClubService;
+import com.example.weconnect.model.Event;
+import com.example.weconnect.service.EventService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/eventsClubs")
-public class EventClubController {
+@RequestMapping("/api/events")
+public class EventController {
 
-    private final EventClubService service;
+    private final EventService service;
 
-    public EventClubController(EventClubService service) {
+    public EventController(EventService service) {
         this.service = service;
     }
 
     @GetMapping
-    public List<EventClub> all() {
+    public List<Event> all() {
         return service.findAll();
     }
 
     // GET /api/events/search?search=...
-    @GetMapping("/searchclubs")
-    public List<EventClub> search(@RequestParam String search) {
+    @GetMapping("/search")
+    public List<Event> search(@RequestParam String search) {
         if (search != null && !search.isBlank()) {
             return service.search(search);
         }
@@ -34,19 +34,19 @@ public class EventClubController {
     
 
     // POST /api/events?createurId=...
-    @PostMapping("/createEventClubs")
-    public ResponseEntity<EventClub> create(
+    @PostMapping("/create")
+    public ResponseEntity<Event> create(
             @RequestParam Long createurId,
-            @RequestBody EventClub e) {
+            @RequestBody Event e) {
         return ResponseEntity.ok(service.create(e, createurId));
     }
 
     // PUT /api/events/{id}?createurId=...
     @PutMapping("/{id}")
-    public ResponseEntity<EventClub> update(
+    public ResponseEntity<Event> update(
             @PathVariable Long id,
             @RequestParam Long createurId,
-            @RequestBody EventClub e) {
+            @RequestBody Event e) {
         return ResponseEntity.ok(service.update(id, e, createurId));
     }
 
