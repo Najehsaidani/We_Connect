@@ -13,4 +13,6 @@ export interface ClubDto {
   coverPhoto: string; // URL de la photo de couverture du club
   profilePhoto: string; // URL de la photo de profil du club
   dateCreation: string; // Date de création du club (format ISO 8601)
+  etat: string; 
+  membres:number;
 }

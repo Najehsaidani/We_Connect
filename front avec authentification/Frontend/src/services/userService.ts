@@ -1,7 +1,6 @@
 // src/services/userService.ts
 import apiClient from './api';
 import { User } from '../types/user';
-import { ChangePasswordRequest } from '@/types/auth';
 
 export const userService = {
   getAllUsers: async () => {
@@ -49,14 +48,6 @@ export const userService = {
       throw new Error(error.response?.data?.error || 'Failed to delete user');
     }
   },
-    changePassword: async (passwordData: ChangePasswordRequest) => {
-  try {
-    const response = await apiClient.post('/users/change-password', passwordData);
-    return response.data;
-  } catch (error) {
-    throw new Error(error.response?.data?.message || 'Password change failed');
-  }
-},
 
   uploadUserImage: async (id: number, file: File) => {
     try {

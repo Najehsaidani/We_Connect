@@ -1,76 +1,61 @@
-import { useState, useEffect } from "react";
-import { clubService } from "@/services/clubService";
-import { categoryService } from "@/services/categoryService";
-import { toast } from "@/components/ui/use-toast";  // Adaptation de votre gestion des notifications
 
-interface ClubDto {
-  id?: number;
-  nom: string;
-  description: string;
-  categoryId: number;
-  coverPhoto: string;
-  profilePhoto: string;
-  dateCreation: string;
-}
+import React, { useState } from 'react';
+import { Search, Plus } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
+
+// Components
+import ClubsHeader from '@/components/clubs/ClubsHeader';
+import ClubsList from '@/components/clubs/ClubsList';
+import CreateClubDialog from '@/components/clubs/CreateClubDialog';
+import ClubDetailsDialog from '@/components/clubs/ClubDetailsDialog';
+import FloatingActionButton from '@/components/clubs/FloatingActionButton';
+
+// Data
+import { initialClubs, categories } from '@/components/clubs/clubsData';
 
 const ClubsPage = () => {
-  const [clubs, setClubs] = useState<ClubDto[]>([]);
-  const [joinedClubs, setJoinedClubs] = useState<number[]>([]); // Liste des ID des clubs où l'utilisateur est membre
-  const [categories, setCategories] = useState<string[]>(['Tous']); // Liste des catégories avec "Tous"
-  const [newClub, setNewClub] = useState<ClubDto>({
-    nom: '',
+  const [clubs, setClubs] = useState(initialClubs);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('Tous');
+  const [isCreateClubOpen, setIsCreateClubOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [joinedClubs, setJoinedClubs] = useState<number[]>([]);
+  const [selectedClub, setSelectedClub] = useState<any>(null);
+  const [isClubDetailOpen, setIsClubDetailOpen] = useState(false);
+  
+  // Form state for new club
+  const [newClub, setNewClub] = useState({
+    name: '',
     description: '',
-    categoryId: 0,
+    category: 'Académique',
     coverPhoto: '',
-    profilePhoto: '',
-    dateCreation: new Date().toISOString()
+    profilePhoto: ''
   });
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isCreateClubOpen, setIsCreateClubOpen] = useState<boolean>(false);
+  
+  const { toast } = useToast();
 
-  // Charger les clubs existants
-  useEffect(() => {
-    const fetchClubs = async () => {
-      try {
-        const allClubs = await clubService.getAllClubs();
-        setClubs(allClubs);
-      } catch (error) {
-        toast({
-          title: "Erreur",
-          description: "Impossible de charger les clubs.",
-          variant: "destructive"
-        });
-      }
-    };
+  // Filter clubs based on search query and category
+  const filteredClubs = clubs.filter(club => {
+    const matchesQuery = club.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        club.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = activeCategory === 'Tous' || club.category === activeCategory;
+    
+    return matchesQuery && matchesCategory;
+  });
 
-    fetchClubs();
-  }, []);
+  // Handle category change
+  const handleCategoryChange = (category: string) => {
+    setActiveCategory(category);
+  };
 
-  // Charger les catégories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const allCategories = await categoryService.getAllCategories();
-        const names = allCategories.map((cat: any) => cat.name); // Assurez-vous que le modèle de catégorie contient un champ `name`
-        setCategories(['Tous', ...names]);
-        if (names.length > 0) {
-          setNewClub((prev) => ({ ...prev, categoryId: names[0] ? names[0] : 0 }));
-        }
-      } catch (err) {
-        toast({
-          title: "Erreur catégories",
-          description: "Impossible de charger les catégories.",
-          variant: "destructive"
-        });
-      }
-    };
+  // Handle search query change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
 
-    fetchCategories();
-  }, []);
-
-  // Créer un club
-  const handleCreateClub = async () => {
-    if (!newClub.nom || !newClub.description || !newClub.categoryId) {
+  // Handle club creation with photo uploads
+  const handleCreateClub = () => {
+    if (!newClub.name || !newClub.description) {
       toast({
         title: "Champs requis",
         description: "Veuillez remplir tous les champs obligatoires.",
@@ -80,100 +65,104 @@ const ClubsPage = () => {
     }
 
     setIsLoading(true);
-    try {
-      const res = await clubService.createClub(newClub);
-      setClubs([res, ...clubs]);
-      setJoinedClubs([...joinedClubs, res.id!]);
+    
+    // Simulate API call
+    setTimeout(() => {
+      const createdClub = {
+        id: clubs.length + 1,
+        name: newClub.name,
+        description: newClub.description,
+        members: 1,
+        banner: newClub.coverPhoto || '/placeholder.svg',
+        category: newClub.category,
+        nextEvent: 'Aucun événement planifié',
+        location: 'À déterminer',
+        createdAt: new Date().toISOString().split('T')[0],
+        membersList: [
+          { id: 1, name: 'Vous', role: 'Fondateur', avatar: newClub.profilePhoto || '/placeholder.svg' }
+        ]
+      };
+      
+      setClubs([createdClub, ...clubs]);
+      setJoinedClubs([...joinedClubs, createdClub.id]);
+      setIsLoading(false);
       setIsCreateClubOpen(false);
+      
+      // Reset form
+      setNewClub({
+        name: '',
+        description: '',
+        category: 'Académique',
+        coverPhoto: '',
+        profilePhoto: ''
+      });
+      
       toast({
         title: "Club créé",
-        description: "Votre club a été créé avec succès !"
+        description: "Votre club a été créé avec succès !",
       });
+    }, 1000);
+  };
 
-      // Réinitialiser le formulaire de création
-      setNewClub({
-        nom: '',
-        description: '',
-        categoryId: categories.find(c => c !== 'Tous') ? 0 : 0,  // Réinitialiser avec une catégorie valide
-        coverPhoto: '',
-        profilePhoto: '',
-        dateCreation: new Date().toISOString()
-      });
-    } catch (error) {
+  // Handle joining/leaving a club
+  const handleJoinClub = (clubId: number) => {
+    if (joinedClubs.includes(clubId)) {
+      setJoinedClubs(joinedClubs.filter(id => id !== clubId));
       toast({
-        title: "Erreur",
-        description: "Échec de la création du club.",
-        variant: "destructive"
+        title: "Club quitté",
+        description: "Vous avez quitté ce club.",
       });
-    } finally {
-      setIsLoading(false);
+    } else {
+      setJoinedClubs([...joinedClubs, clubId]);
+      toast({
+        title: "Club rejoint",
+        description: "Vous avez rejoint ce club avec succès !",
+      });
     }
   };
 
+  // Handle opening club details
+  const handleClubDetailsOpen = (club: any) => {
+    setSelectedClub(club);
+    setIsClubDetailOpen(true);
+  };
+
   return (
-    <div>
-      <h1>Liste des clubs</h1>
+    <div className="page-container">
+      <ClubsHeader 
+        categories={categories}
+        activeCategory={activeCategory}
+        onCategoryChange={handleCategoryChange}
+        searchQuery={searchQuery}
+        onSearchChange={handleSearchChange}
+      />
 
-      {/* Affichage des clubs */}
-      <div>
-        {clubs.length > 0 ? (
-          clubs.map((club) => (
-            <div key={club.id}>
-              <h2>{club.nom}</h2>
-              <p>{club.description}</p>
-              <p>Catégorie: {categories[club.categoryId]}</p>
-              {/* Affichage des actions possibles pour rejoindre/voir le club */}
-            </div>
-          ))
-        ) : (
-          <p>Aucun club disponible.</p>
-        )}
-      </div>
+      <ClubsList 
+        clubs={filteredClubs}
+        joinedClubs={joinedClubs}
+        onJoinClub={handleJoinClub}
+        onClubDetailsOpen={handleClubDetailsOpen}
+        onCreateClubClick={() => setIsCreateClubOpen(true)}
+      />
 
-      {/* Formulaire pour créer un club */}
-      {isCreateClubOpen && (
-        <div>
-          <h2>Créer un club</h2>
-          <form onSubmit={(e) => { e.preventDefault(); handleCreateClub(); }}>
-            <label>
-              Nom du club:
-              <input
-                type="text"
-                value={newClub.nom}
-                onChange={(e) => setNewClub({ ...newClub, nom: e.target.value })}
-                required
-              />
-            </label>
-            <label>
-              Description:
-              <textarea
-                value={newClub.description}
-                onChange={(e) => setNewClub({ ...newClub, description: e.target.value })}
-                required
-              />
-            </label>
-            <label>
-              Catégorie:
-              <select
-                value={newClub.categoryId}
-                onChange={(e) => setNewClub({ ...newClub, categoryId: Number(e.target.value) })}
-              >
-                {categories.map((category, index) => (
-                  <option key={index} value={index}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {/* Ajouter les champs coverPhoto et profilePhoto */}
-            <button type="submit" disabled={isLoading}>Créer</button>
-          </form>
-        </div>
-      )}
+      <FloatingActionButton onClick={() => setIsCreateClubOpen(true)} />
 
-      <button onClick={() => setIsCreateClubOpen(!isCreateClubOpen)}>
-        {isCreateClubOpen ? 'Annuler' : 'Créer un nouveau club'}
-      </button>
+      <CreateClubDialog 
+        open={isCreateClubOpen}
+        onOpenChange={setIsCreateClubOpen}
+        onCreateClub={handleCreateClub}
+        isLoading={isLoading}
+        newClub={newClub}
+        setNewClub={setNewClub}
+      />
+      
+      <ClubDetailsDialog 
+        open={isClubDetailOpen}
+        onOpenChange={setIsClubDetailOpen}
+        club={selectedClub}
+        isJoined={selectedClub ? joinedClubs.includes(selectedClub.id) : false}
+        onJoin={handleJoinClub}
+      />
     </div>
   );
 };

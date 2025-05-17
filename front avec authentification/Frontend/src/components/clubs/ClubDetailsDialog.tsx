@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { User, Check, X } from 'lucide-react';
 import { 
@@ -20,7 +21,7 @@ interface ClubDetailsDialogProps {
 
 const ClubDetailsDialog = ({ open, onOpenChange, club, isJoined, onJoin }: ClubDetailsDialogProps) => {
   if (!club) return null;
-
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
@@ -53,19 +54,19 @@ const ClubDetailsDialog = ({ open, onOpenChange, club, isJoined, onJoin }: ClubD
             <h3 className="text-lg font-semibold mb-2">Informations</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">Créé le :</p>
+                <p className="text-sm text-muted-foreground">Crée le:</p>
                 <p>{club.createdAt}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Nombre de membres :</p>
+                <p className="text-sm text-muted-foreground">Nombre de membres:</p>
                 <p>{club.members}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Prochain événement :</p>
+                <p className="text-sm text-muted-foreground">Prochain événement:</p>
                 <p>{club.nextEvent}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Lieu :</p>
+                <p className="text-sm text-muted-foreground">Lieu:</p>
                 <p>{club.location}</p>
               </div>
             </div>
@@ -98,7 +99,7 @@ const ClubDetailsDialog = ({ open, onOpenChange, club, isJoined, onJoin }: ClubD
             </div>
           )}
         </div>
-
+        
         <DialogFooter>
           <Button 
             variant="outline" 
@@ -106,20 +107,15 @@ const ClubDetailsDialog = ({ open, onOpenChange, club, isJoined, onJoin }: ClubD
           >
             Fermer
           </Button>
-          <Button 
-            variant={isJoined ? "destructive" : "default"} 
-            onClick={() => onJoin(club.id)}
-          >
-            {isJoined ? (
-              <>
-                <X size={16} className="mr-1" /> Quitter ce club
-              </>
-            ) : (
-              <>
-                <Check size={16} className="mr-1" /> Rejoindre ce club
-              </>
-            )}
-          </Button>
+          {!isJoined ? (
+            <Button onClick={() => onJoin(club.id)}>
+              <Check size={16} className="mr-1" /> Rejoindre ce club
+            </Button>
+          ) : (
+            <Button variant="destructive" onClick={() => onJoin(club.id)}>
+              <X size={16} className="mr-1" /> Quitter ce club
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

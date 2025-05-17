@@ -32,5 +32,15 @@ export const roleService = {
     } catch (error) {
       throw new Error(error.response?.data?.message || 'Failed to update user status');
     }
+  },
+   getAllRoles: async (): Promise<string[]> => {
+    try {
+      const response = await apiClient.get('/admin/roles');
+      return response.data.roles;
+    } catch (error) {
+      // Properly handle TypeScript error object
+      const errorMessage = error.response?.data?.message || 'Failed to fetch roles';
+      throw new Error(errorMessage);
+    }
   }
 };

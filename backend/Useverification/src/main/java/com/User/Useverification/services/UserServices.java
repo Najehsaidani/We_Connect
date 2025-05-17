@@ -24,6 +24,8 @@ import com.User.Useverification.Request.VerifRequest;
 import com.User.Useverification.Request.ResetRequest;
 import com.User.Useverification.Response.ResponseUser;
 import com.User.Useverification.Security.JwtTokenUtil;
+import com.User.Useverification.enums.Status;
+
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -69,7 +71,7 @@ public class UserServices {
                     .enabled(false)
                     .verificationCode(verificationCode)
                     .verificationCodeExpiration(verificationExpiry)
-                    .status(User.Status.ACTIF)
+                    .status(Status.ACTIF)
                     .build();
 
             user.setSingleRole(defaultRole);

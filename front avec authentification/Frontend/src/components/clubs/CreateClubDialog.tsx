@@ -1,9 +1,10 @@
-import React from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
+
+import React, { useState } from 'react';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
   DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,34 +12,41 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import PhotoUploader from "@/components/PhotoUploader";
 
-interface NewClub {
-  name: string;
-  description: string;
-  category: string;
-  coverPhoto: string;
-  profilePhoto: string;
-  dateCreation: string;
-}
-
 interface CreateClubDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreateClub: () => void;
   isLoading: boolean;
-  newClub: NewClub;
-  setNewClub: React.Dispatch<React.SetStateAction<NewClub>>;
+  newClub: {
+    name: string;
+    description: string;
+    category: string;
+    coverPhoto: string;
+    profilePhoto: string;
+  };
+  setNewClub: React.Dispatch<React.SetStateAction<{
+    name: string;
+    description: string;
+    category: string;
+    coverPhoto: string;
+    profilePhoto: string;
+  }>>;
 }
 
-const CreateClubDialog = ({
-  open,
-  onOpenChange,
-  onCreateClub,
-  isLoading,
-  newClub,
-  setNewClub
+const CreateClubDialog = ({ 
+  open, 
+  onOpenChange, 
+  onCreateClub, 
+  isLoading, 
+  newClub, 
+  setNewClub 
 }: CreateClubDialogProps) => {
-  const handlePhotoChange = (key: keyof NewClub, value: string) => {
-    setNewClub({ ...newClub, [key]: value });
+  const handleProfilePhotoAdded = (photoUrl: string) => {
+    setNewClub({...newClub, profilePhoto: photoUrl});
+  };
+  
+  const handleCoverPhotoAdded = (photoUrl: string) => {
+    setNewClub({...newClub, coverPhoto: photoUrl});
   };
 
   return (
@@ -47,28 +55,28 @@ const CreateClubDialog = ({
         <DialogHeader>
           <DialogTitle>Créer un nouveau club</DialogTitle>
         </DialogHeader>
-
+        
         <div className="space-y-4 py-4">
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label htmlFor="club-cover-photo" className="block text-sm font-medium mb-1">
               Photo de couverture
             </label>
-            <PhotoUploader
-              onPhotoAdded={(url) => handlePhotoChange('coverPhoto', url)}
-              onPhotoRemoved={() => handlePhotoChange('coverPhoto', '')}
+            <PhotoUploader 
+              onPhotoAdded={handleCoverPhotoAdded} 
+              onPhotoRemoved={() => setNewClub({...newClub, coverPhoto: ''})}
             />
           </div>
-
+          
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label htmlFor="club-profile-photo" className="block text-sm font-medium mb-1">
               Logo du club
             </label>
-            <PhotoUploader
-              onPhotoAdded={(url) => handlePhotoChange('profilePhoto', url)}
-              onPhotoRemoved={() => handlePhotoChange('profilePhoto', '')}
+            <PhotoUploader 
+              onPhotoAdded={handleProfilePhotoAdded}
+              onPhotoRemoved={() => setNewClub({...newClub, profilePhoto: ''})}
             />
           </div>
-
+          
           <div>
             <label htmlFor="club-name" className="block text-sm font-medium mb-1">
               Nom du club *
@@ -76,12 +84,12 @@ const CreateClubDialog = ({
             <Input
               id="club-name"
               value={newClub.name}
-              onChange={(e) => handlePhotoChange('name', e.target.value)}
+              onChange={(e) => setNewClub({...newClub, name: e.target.value})}
               placeholder="Nom de votre club"
               required
             />
           </div>
-
+          
           <div>
             <label htmlFor="club-description" className="block text-sm font-medium mb-1">
               Description *
@@ -89,13 +97,13 @@ const CreateClubDialog = ({
             <Textarea
               id="club-description"
               value={newClub.description}
-              onChange={(e) => handlePhotoChange('description', e.target.value)}
+              onChange={(e) => setNewClub({...newClub, description: e.target.value})}
               placeholder="Décrivez l'objectif et les activités de votre club"
               className="min-h-[100px]"
               required
             />
           </div>
-
+          
           <div>
             <label htmlFor="club-category" className="block text-sm font-medium mb-1">
               Catégorie
@@ -103,10 +111,9 @@ const CreateClubDialog = ({
             <select
               id="club-category"
               value={newClub.category}
-              onChange={(e) => handlePhotoChange('category', e.target.value)}
-              className="input-field w-full px-3 py-2 border rounded-md"
+              onChange={(e) => setNewClub({...newClub, category: e.target.value})}
+              className="input-field"
             >
-              <option value="">Sélectionner une catégorie</option>
               <option value="Académique">Académique</option>
               <option value="Sport">Sport</option>
               <option value="Arts">Arts</option>
@@ -115,30 +122,17 @@ const CreateClubDialog = ({
               <option value="Loisirs">Loisirs</option>
             </select>
           </div>
-
-          <div>
-            <label htmlFor="club-dateCreation" className="block text-sm font-medium mb-1">
-              Date de création *
-            </label>
-            <Input
-              id="club-dateCreation"
-              type="date"
-              value={newClub.dateCreation}
-              onChange={(e) => handlePhotoChange('dateCreation', e.target.value)}
-              required
-            />
-          </div>
         </div>
-
+        
         <DialogFooter>
-          <Button
-            variant="outline"
+          <Button 
+            variant="outline" 
             onClick={() => onOpenChange(false)}
             disabled={isLoading}
           >
             Annuler
           </Button>
-          <Button
+          <Button 
             onClick={onCreateClub}
             disabled={isLoading}
           >

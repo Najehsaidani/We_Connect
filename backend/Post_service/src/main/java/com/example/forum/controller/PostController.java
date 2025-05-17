@@ -20,7 +20,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/posts")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:8081") // Add CORS configuration here
+// @CrossOrigin(origins = "http://localhost:8081") // Add CORS configuration here
 public class PostController {
     private final PostService postService;
     private final FileStorageService fileStorageService;
