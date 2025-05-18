@@ -31,6 +31,8 @@ import NotFound from "./pages/NotFound";
 // Components
 import ProtectedRoute from "./components/ProtectedRoute";
 
+import UserProfilePopup from "./pages/Profile";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -70,6 +72,7 @@ const App = () => (
               <Route path="events" element={<EventsPage />} />
               <Route path="chat" element={<ChatPage />} />
               <Route path="profile" element={<ProfilePage />} />
+             
             </Route>
           </Route>
 

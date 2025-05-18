@@ -1,12 +1,12 @@
-import axios from 'axios';
 import apiClient from './api';
-  // Remplacez par l'URL de votre backend
 
 export const categoryService = {
   // Récupérer toutes les catégories
   getAllCategories: async () => {
     try {
-      const response = await axios.get(apiClient + '/categories');
+      console.log("Fetching all categories...");
+      const response = await apiClient.get('/categories');
+      console.log("Categories response:", response.data);
       return response.data;
     } catch (error) {
       console.error('Erreur lors de la récupération des catégories', error);
@@ -15,9 +15,11 @@ export const categoryService = {
   },
 
   // Créer une nouvelle catégorie
-  createCategory: async (category: { name: string }) => {
+  createCategory: async (category: { nom: string }) => {
     try {
-      const response = await axios.post(apiClient +'/categories', category);
+      console.log("Creating category with data:", category);
+      const response = await apiClient.post('/categories', category);
+      console.log("Create category response:", response.data);
       return response.data;
     } catch (error) {
       console.error('Erreur lors de la création de la catégorie', error);
@@ -26,9 +28,11 @@ export const categoryService = {
   },
 
   // Mettre à jour une catégorie existante
-  updateCategory: async (id: number, category: { name: string }) => {
+  updateCategory: async (id: number, category: { nom: string }) => {
     try {
-      const response = await axios.put(`${apiClient + '/categories'}/${id}`, category);
+      console.log("Updating category with data:", category);
+      const response = await apiClient.put(`/categories/${id}`, category);
+      console.log("Update category response:", response.data);
       return response.data;
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la catégorie', error);
@@ -39,7 +43,9 @@ export const categoryService = {
   // Supprimer une catégorie
   deleteCategory: async (id: number) => {
     try {
-      await axios.delete(`${apiClient + '/categories'}/${id}`);
+      console.log("Deleting category with ID:", id);
+      await apiClient.delete(`/categories/${id}`);
+      console.log("Category deleted successfully");
     } catch (error) {
       console.error('Erreur lors de la suppression de la catégorie', error);
       throw error;
@@ -49,7 +55,9 @@ export const categoryService = {
   // Récupérer une catégorie par son ID
   getCategoryById: async (id: number) => {
     try {
-      const response = await axios.get(`${apiClient + '/categories'}/${id}`);
+      console.log("Fetching category with ID:", id);
+      const response = await apiClient.get(`/categories/${id}`);
+      console.log("Category by ID response:", response.data);
       return response.data;
     } catch (error) {
       console.error('Erreur lors de la récupération de la catégorie par ID', error);

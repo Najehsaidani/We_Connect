@@ -20,7 +20,7 @@ const ClubsPage = () => {
   const [isCreateClubOpen, setIsCreateClubOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [joinedClubs, setJoinedClubs] = useState<number[]>([]);
-  const [selectedClub, setSelectedClub] = useState<any>(null);
+  const [selectedClub, setSelectedClub] = useState<boolean>(null);
   const [isClubDetailOpen, setIsClubDetailOpen] = useState(false);
   
   // Form state for new club
@@ -122,7 +122,7 @@ const ClubsPage = () => {
   };
 
   // Handle opening club details
-  const handleClubDetailsOpen = (club: any) => {
+  const handleClubDetailsOpen = (club) => {
     setSelectedClub(club);
     setIsClubDetailOpen(true);
   };

@@ -1,17 +1,20 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Calendar, MapPin, Clock, Plus, Users, Filter, CalendarCheck } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { EventsService } from "@/services/eventService";
+import { eventsClubsService } from "@/services/EventClubServices";
+import ParticipantService from "@/services/participantService";
 
 // Sample events data
 const initialEvents = [
@@ -125,14 +128,16 @@ const formatDate = (dateString: string) => {
 };
 
 const EventsPage = () => {
-  const [events, setEvents] = useState(initialEvents);
+  const [events, setEvents] = useState([]);
+  const [clubEvents, setClubEvents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeType, setActiveType] = useState('Tous');
   const [showUpcoming, setShowUpcoming] = useState(true);
   const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [attendingEvents, setAttendingEvents] = useState<number[]>([]);
-  
+  const [currentUserId, setCurrentUserId] = useState<number>(1); // Replace with actual user ID from auth
+
   // Form state for new event
   const [newEvent, setNewEvent] = useState({
     title: '',
@@ -142,17 +147,127 @@ const EventsPage = () => {
     location: '',
     type: 'Social'
   });
-  
+
   const { toast } = useToast();
 
+  // Fetch events from backend
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setIsLoading(true);
+        console.log('Fetching events from backend...');
+
+        // Fetch regular events
+        let regularEvents = [];
+        try {
+          regularEvents = await EventsService.getAllEvents();
+          console.log('Regular events fetched:', regularEvents);
+        } catch (error) {
+          console.error('Error fetching regular events:', error);
+          // Continue with empty array if this fails
+        }
+
+        // Fetch club events
+        let eventsFromClubs = [];
+        try {
+          eventsFromClubs = await eventsClubsService.getAllEventsClubs();
+          console.log('Club events fetched:', eventsFromClubs);
+        } catch (error) {
+          console.error('Error fetching club events:', error);
+          // Continue with empty array if this fails
+        }
+
+        // If both fetches failed, show error
+        if (regularEvents.length === 0 && eventsFromClubs.length === 0) {
+          // If we're in development, use sample data
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Using sample data for development');
+            setEvents(initialEvents);
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        // Format events for display
+        const formattedRegularEvents = regularEvents.map(event => ({
+          id: event.id,
+          title: event.titre || 'Événement sans titre',
+          description: event.description || 'Aucune description disponible',
+          date: event.dateDebut ? event.dateDebut.split('T')[0] : new Date().toISOString().split('T')[0], // Extract just the date part
+          time: event.dateDebut ? (event.dateDebut.split('T')[1]?.substring(0, 5) || '00:00') : '00:00', // Extract time or default
+          location: event.lieu || 'Campus',
+          image: event.image || '/placeholder.svg',
+          organizer: 'Administration',
+          attending: event.nbParticipants || 0,
+          type: 'Académique',
+          isUpcoming: event.dateDebut ? new Date(event.dateDebut) > new Date() : true
+        }));
+
+        const formattedClubEvents = eventsFromClubs.map(event => ({
+          id: event.id,
+          title: event.titre || 'Événement sans titre',
+          description: event.description || 'Aucune description disponible',
+          date: event.dateDebut ? event.dateDebut.split('T')[0] : new Date().toISOString().split('T')[0], // Extract just the date part
+          time: event.dateDebut ? (event.dateDebut.split('T')[1]?.substring(0, 5) || '00:00') : '00:00', // Extract time or default
+          location: event.lieu || 'Campus',
+          image: event.image || '/placeholder.svg',
+          organizer: event.nomClub || 'Club',
+          attending: event.nbParticipants || 0,
+          type: 'Social',
+          isUpcoming: event.dateDebut ? new Date(event.dateDebut) > new Date() : true
+        }));
+
+        console.log('Formatted regular events:', formattedRegularEvents);
+        console.log('Formatted club events:', formattedClubEvents);
+
+        setEvents(formattedRegularEvents);
+        setClubEvents(formattedClubEvents);
+
+        // Check which events the current user is participating in
+        if (currentUserId) {
+          try {
+            const userEvents = await ParticipantService.getUserEvents(currentUserId);
+            console.log('User events:', userEvents);
+            if (userEvents && userEvents.length > 0) {
+              const participatingEventIds = userEvents.map(event => event.eventId);
+              setAttendingEvents(participatingEventIds);
+            }
+          } catch (error) {
+            console.error('Error fetching user events:', error);
+            // Continue without user events if this fails
+          }
+        }
+      } catch (error) {
+        console.error('Error in fetchEvents:', error);
+        toast({
+          title: 'Erreur',
+          description: 'Impossible de charger les événements',
+          variant: 'destructive',
+        });
+
+        // If we're in development, use sample data
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Using sample data for development after error');
+          setEvents(initialEvents);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchEvents();
+  }, [toast, currentUserId, initialEvents]);
+
   // Filter events based on search query, type and upcoming status
-  const filteredEvents = events.filter(event => {
+  const allEvents = [...events, ...clubEvents];
+
+  const filteredEvents = allEvents.filter(event => {
     const matchesQuery = event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                         event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        event.location.toLowerCase().includes(searchQuery.toLowerCase());
+                        (event.location && event.location.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesType = activeType === 'Tous' || event.type === activeType;
     const matchesUpcoming = !showUpcoming || event.isUpcoming;
-    
+
     return matchesQuery && matchesType && matchesUpcoming;
   });
 
@@ -167,7 +282,7 @@ const EventsPage = () => {
   };
 
   // Handle event creation
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
     if (!newEvent.title || !newEvent.description || !newEvent.date || !newEvent.time || !newEvent.location) {
       toast({
         title: "Champs requis",
@@ -178,28 +293,147 @@ const EventsPage = () => {
     }
 
     setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      const createdEvent = {
-        id: events.length + 1,
-        title: newEvent.title,
-        description: newEvent.description,
-        date: newEvent.date,
-        time: newEvent.time,
-        location: newEvent.location,
-        image: '/placeholder.svg',
-        organizer: 'Utilisateur',
-        attending: 1,
-        type: newEvent.type,
-        isUpcoming: true
-      };
-      
-      setEvents([createdEvent, ...events]);
-      setAttendingEvents([...attendingEvents, createdEvent.id]);
-      setIsLoading(false);
+    console.log('Creating new event:', newEvent);
+
+    try {
+      // Format date and time for backend
+      const dateTime = `${newEvent.date}T${newEvent.time}:00`;
+      console.log('Formatted date time:', dateTime);
+
+      // Create event using the appropriate service based on type
+      let createdEvent;
+      let formattedEvent;
+
+      try {
+        if (newEvent.type === 'Social' || newEvent.type === 'Culture') {
+          // Create a club event
+          console.log('Creating club event');
+          createdEvent = await eventsClubsService.createEvent(
+            currentUserId,
+            {
+              titre: newEvent.title,
+              description: newEvent.description,
+              lieu: newEvent.location,
+              dateDebut: dateTime,
+              dateFin: new Date(new Date(dateTime).getTime() + 3600000).toISOString(), // 1 hour after start
+              status: 'UPCOMING'
+            }
+          );
+
+          console.log('Club event created:', createdEvent);
+
+          // Format for display
+          formattedEvent = {
+            id: createdEvent.id,
+            title: createdEvent.titre,
+            description: createdEvent.description,
+            date: newEvent.date,
+            time: newEvent.time,
+            location: createdEvent.lieu || newEvent.location,
+            image: createdEvent.image || '/placeholder.svg',
+            organizer: 'Vous',
+            attending: createdEvent.nbParticipants || 1,
+            type: newEvent.type,
+            isUpcoming: true
+          };
+
+          setClubEvents([formattedEvent, ...clubEvents]);
+        } else {
+          // Create a regular event
+          console.log('Creating regular event');
+          createdEvent = await EventsService.createEvent(
+            currentUserId,
+            {
+              titre: newEvent.title,
+              description: newEvent.description,
+              lieu: newEvent.location,
+              dateDebut: dateTime,
+              dateFin: new Date(new Date(dateTime).getTime() + 3600000).toISOString(), // 1 hour after start
+              status: 'UPCOMING'
+            }
+          );
+
+          console.log('Regular event created:', createdEvent);
+
+          // Format for display
+          formattedEvent = {
+            id: createdEvent.id,
+            title: createdEvent.titre,
+            description: createdEvent.description,
+            date: newEvent.date,
+            time: newEvent.time,
+            location: createdEvent.lieu || newEvent.location,
+            image: createdEvent.image || '/placeholder.svg',
+            organizer: 'Vous',
+            attending: createdEvent.nbParticipants || 1,
+            type: newEvent.type,
+            isUpcoming: true
+          };
+
+          setEvents([formattedEvent, ...events]);
+        }
+      } catch (createError) {
+        console.error('Error creating event:', createError);
+
+        // If we're in development, simulate success
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Development mode: simulating successful event creation');
+
+          // Create a mock event with a random ID
+          createdEvent = {
+            id: Math.floor(Math.random() * 1000),
+            titre: newEvent.title,
+            description: newEvent.description,
+            lieu: newEvent.location,
+            dateDebut: dateTime,
+            dateFin: new Date(new Date(dateTime).getTime() + 3600000).toISOString(),
+            status: 'UPCOMING',
+            nbParticipants: 1,
+            createurId: currentUserId
+          };
+
+          // Format for display
+          formattedEvent = {
+            id: createdEvent.id,
+            title: createdEvent.titre,
+            description: createdEvent.description,
+            date: newEvent.date,
+            time: newEvent.time,
+            location: createdEvent.lieu || newEvent.location,
+            image: createdEvent.image || '/placeholder.svg',
+            organizer: 'Vous',
+            attending: createdEvent.nbParticipants || 1,
+            type: newEvent.type,
+            isUpcoming: true
+          };
+
+          if (newEvent.type === 'Social' || newEvent.type === 'Culture') {
+            setClubEvents([formattedEvent, ...clubEvents]);
+          } else {
+            setEvents([formattedEvent, ...events]);
+          }
+        } else {
+          throw createError;
+        }
+      }
+
+      // Automatically join the event
+      try {
+        if (createdEvent && createdEvent.id) {
+          console.log('Joining newly created event:', createdEvent.id);
+          await ParticipantService.joinEvent(currentUserId, createdEvent.id);
+          setAttendingEvents([...attendingEvents, createdEvent.id]);
+        }
+      } catch (joinError) {
+        console.error('Error joining created event:', joinError);
+        // Continue even if joining fails
+        if (createdEvent && createdEvent.id) {
+          setAttendingEvents([...attendingEvents, createdEvent.id]);
+        }
+      }
+
       setIsCreateEventOpen(false);
-      
+
       // Reset form
       setNewEvent({
         title: '',
@@ -209,28 +443,93 @@ const EventsPage = () => {
         location: '',
         type: 'Social'
       });
-      
+
       toast({
         title: "Événement créé",
         description: "Votre événement a été créé avec succès !",
       });
-    }, 1000);
+    } catch (error) {
+      console.error('Error in handleCreateEvent:', error);
+      toast({
+        title: 'Erreur',
+        description: 'Impossible de créer l\'événement',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Handle event attendance
-  const handleAttendEvent = (eventId: number) => {
-    if (attendingEvents.includes(eventId)) {
-      setAttendingEvents(attendingEvents.filter(id => id !== eventId));
+  const handleAttendEvent = async (eventId: number) => {
+    try {
+      setIsLoading(true);
+      console.log(`Handling attendance for event ${eventId}, user ${currentUserId}`);
+
+      if (attendingEvents.includes(eventId)) {
+        // Leave event
+        console.log(`User ${currentUserId} is leaving event ${eventId}`);
+        try {
+          await ParticipantService.leaveEvent(currentUserId, eventId);
+          setAttendingEvents(attendingEvents.filter(id => id !== eventId));
+
+          toast({
+            title: "Participation annulée",
+            description: "Vous ne participez plus à cet événement.",
+          });
+        } catch (leaveError) {
+          console.error('Error leaving event:', leaveError);
+
+          // If we're in development, simulate success
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Development mode: simulating successful leave event');
+            setAttendingEvents(attendingEvents.filter(id => id !== eventId));
+
+            toast({
+              title: "Participation annulée",
+              description: "Vous ne participez plus à cet événement.",
+            });
+          } else {
+            throw leaveError;
+          }
+        }
+      } else {
+        // Join event
+        console.log(`User ${currentUserId} is joining event ${eventId}`);
+        try {
+          await ParticipantService.joinEvent(currentUserId, eventId);
+          setAttendingEvents([...attendingEvents, eventId]);
+
+          toast({
+            title: "Participation confirmée",
+            description: "Votre participation à l'événement a été enregistrée !",
+          });
+        } catch (joinError) {
+          console.error('Error joining event:', joinError);
+
+          // If we're in development, simulate success
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Development mode: simulating successful join event');
+            setAttendingEvents([...attendingEvents, eventId]);
+
+            toast({
+              title: "Participation confirmée",
+              description: "Votre participation à l'événement a été enregistrée !",
+            });
+          } else {
+            throw joinError;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error updating event participation:', error);
       toast({
-        title: "Participation annulée",
-        description: "Vous ne participez plus à cet événement.",
+        title: 'Erreur',
+        description: 'Impossible de mettre à jour votre participation',
+        variant: 'destructive',
       });
-    } else {
-      setAttendingEvents([...attendingEvents, eventId]);
-      toast({
-        title: "Participation confirmée",
-        description: "Votre participation à l'événement a été enregistrée !",
-      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -276,7 +575,7 @@ const EventsPage = () => {
             />
           </div>
         </div>
-        
+
         {/* Additional filters */}
         <div className="flex justify-between items-center">
           <div className="flex items-center">
@@ -290,7 +589,7 @@ const EventsPage = () => {
               Événements à venir uniquement
             </button>
           </div>
-          
+
           {/* <button
             onClick={() => setIsCreateEventOpen(true)}
             className="flex items-center px-4 py-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
@@ -304,14 +603,14 @@ const EventsPage = () => {
       {/* Events Masonry Grid */}
       <div className="masonry-grid">
         {filteredEvents.map((event, index) => (
-          <div 
-            key={event.id} 
+          <div
+            key={event.id}
             className="mb-6 inline-block w-full animate-fade-in"
             style={{ animationDelay: `${index * 0.1}s` }}
           >
             <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-border card-hover">
               {/* Event Image */}
-              <div 
+              <div
                 className="h-40 bg-muted bg-cover bg-center"
                 style={{ backgroundImage: `url(${event.image})` }}
               >
@@ -321,39 +620,39 @@ const EventsPage = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="p-4">
                 <h3 className="text-lg font-semibold mb-2">{event.title}</h3>
-                
+
                 <div className="flex flex-col space-y-2 mb-4">
                   <div className="flex items-center text-sm text-muted-foreground">
                     <Calendar size={14} className="mr-2" />
                     <span>{formatDate(event.date)}</span>
                   </div>
-                  
+
                   <div className="flex items-center text-sm text-muted-foreground">
                     <Clock size={14} className="mr-2" />
                     <span>{event.time}</span>
                   </div>
-                  
+
                   <div className="flex items-center text-sm text-muted-foreground">
                     <MapPin size={14} className="mr-2" />
                     <span>{event.location}</span>
                   </div>
-                  
+
                   <div className="flex items-center text-sm text-muted-foreground">
                     <Users size={14} className="mr-2" />
                     <span>{event.attending} participants</span>
                   </div>
                 </div>
-                
+
                 <p className="text-sm text-foreground mb-4 line-clamp-3">{event.description}</p>
-                
+
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-muted-foreground">
                     Organisé par {event.organizer}
                   </span>
-                  
+
                   {event.isUpcoming && (
                     <Button
                       variant={attendingEvents.includes(event.id) ? "secondary" : "outline"}
@@ -400,7 +699,7 @@ const EventsPage = () => {
           <DialogHeader>
             <DialogTitle>Créer un nouvel événement</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div>
               <label htmlFor="event-title" className="block text-sm font-medium mb-1">
@@ -414,7 +713,7 @@ const EventsPage = () => {
                 required
               />
             </div>
-            
+
             <div>
               <label htmlFor="event-description" className="block text-sm font-medium mb-1">
                 Description *
@@ -428,7 +727,7 @@ const EventsPage = () => {
                 required
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="event-date" className="block text-sm font-medium mb-1">
@@ -442,7 +741,7 @@ const EventsPage = () => {
                   required
                 />
               </div>
-              
+
               <div>
                 <label htmlFor="event-time" className="block text-sm font-medium mb-1">
                   Heure *
@@ -456,7 +755,7 @@ const EventsPage = () => {
                 />
               </div>
             </div>
-            
+
             <div>
               <label htmlFor="event-location" className="block text-sm font-medium mb-1">
                 Lieu *
@@ -469,7 +768,7 @@ const EventsPage = () => {
                 required
               />
             </div>
-            
+
             <div>
               <label htmlFor="event-type" className="block text-sm font-medium mb-1">
                 Type d'événement
@@ -488,16 +787,16 @@ const EventsPage = () => {
               </select>
             </div>
           </div>
-          
+
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setIsCreateEventOpen(false)}
               disabled={isLoading}
             >
               Annuler
             </Button>
-            <Button 
+            <Button
               onClick={handleCreateEvent}
               disabled={isLoading}
             >
