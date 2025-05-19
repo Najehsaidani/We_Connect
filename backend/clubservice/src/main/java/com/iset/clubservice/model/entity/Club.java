@@ -1,5 +1,6 @@
 package com.iset.clubservice.model.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -26,12 +27,13 @@ public class Club {
 
     private LocalDate dateCreation;
     private Long createurId; // ID de l'étudiant créateur
-    
+
     @Column(name = "etat")
      private EtatClub etat;
 
-    @ManyToOne
-    @JoinColumn(name = "category_id")
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "category_id", nullable = false)
+    @JsonBackReference
     private Category category;
 
     @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)

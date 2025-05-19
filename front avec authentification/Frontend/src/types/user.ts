@@ -17,7 +17,8 @@ export type User = {
   address: string;
   departement: string;
   biographie: string;
-  image?: string; // Base64-encoded image from backend
+  image?: string;
+  createdTimes : Date;
 };
   export interface StatusUpdateRequest {
     status: string;

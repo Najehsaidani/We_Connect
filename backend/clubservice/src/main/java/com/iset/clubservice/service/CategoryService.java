@@ -1,12 +1,14 @@
 package com.iset.clubservice.service;
 
+import com.iset.clubservice.model.Reponse.Reponsecatogorie;
+import com.iset.clubservice.model.dto.CategoryDto;
 import com.iset.clubservice.model.entity.Category;
 import java.util.List;
 
 public interface CategoryService {
-    Category createCategory(Category category);
-    Category updateCategory(Long id, Category category);
+    CategoryDto createCategory(Category category);
+    CategoryDto updateCategory(Long id, Category category);
     void deleteCategory(Long id);
-    List<Category> getAllCategories();
-    Category getCategoryById(Long id);
+    List<Reponsecatogorie> getAllCategories();
+    CategoryDto getCategoryById(Long id);
 }

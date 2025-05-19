@@ -16,7 +16,8 @@ public class ClubDto {
     private String description;
     private LocalDate dateCreation;
     private Long createurId;
-    private Long categoryId;
+    private Long categoryId; // Keep for backward compatibility
+    private CategorySummaryDto category; // Add the category object
     private EtatClub etat;
     private int members;  // Le nombre de membres
     private String banner; // URL ou chemin de la bannière

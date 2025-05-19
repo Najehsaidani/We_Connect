@@ -67,7 +67,7 @@ public class UserServices {
                     .lastName(registerRequest.getLastName())
                     .email(registerRequest.getEmail())
                     .password(passwordEncoder.encode(registerRequest.getPassword()))
-                    .createdTimestamp(System.currentTimeMillis())
+                    .createdTimes(new Date())
                     .enabled(false)
                     .verificationCode(verificationCode)
                     .verificationCodeExpiration(verificationExpiry)

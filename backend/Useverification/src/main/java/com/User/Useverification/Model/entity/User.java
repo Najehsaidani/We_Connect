@@ -55,7 +55,7 @@ public class User implements UserDetails {
         }
         this.roles.add(role);
     }
-    private Long createdTimestamp;
+    private Date createdTimes;
     private boolean enabled;
     private String verificationCode;
     private Date verificationCodeExpiration;

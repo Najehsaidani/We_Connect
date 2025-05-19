@@ -1,5 +1,6 @@
 package com.iset.clubservice.service.impl;
 
+import com.iset.clubservice.model.dto.CategorySummaryDto;
 import com.iset.clubservice.model.dto.ClubDto;
 import com.iset.clubservice.model.dto.MembreClubDto;
 import com.iset.clubservice.model.entity.Category;
@@ -93,13 +94,23 @@ public class ClubServiceImpl implements ClubService {
     private ClubDto toDto(Club c) {
         int membersCount = c.getMembres() != null ? c.getMembres().size() : 0;
 
+        // Create CategorySummaryDto
+        CategorySummaryDto categorySummary = null;
+        if (c.getCategory() != null) {
+            categorySummary = CategorySummaryDto.builder()
+                    .id(c.getCategory().getId())
+                    .nom(c.getCategory().getNom())
+                    .build();
+        }
+
         return ClubDto.builder()
                 .id(c.getId())
                 .nom(c.getNom())
                 .description(c.getDescription())
                 .dateCreation(c.getDateCreation())
                 .createurId(c.getCreateurId())
-                .categoryId(c.getCategory().getId())
+                .categoryId(c.getCategory() != null ? c.getCategory().getId() : null)
+                .category(categorySummary)
                 .etat(c.getEtat())
                 .members(membersCount)
                 .banner(c.getBanner())
