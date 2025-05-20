@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { userService } from '@/services/userService';
 import { roleService } from '@/services/roleService';
 import { clubService } from '@/services/clubService';
 import { PostsService } from '@/services/postService';
 import { EventsService } from '@/services/eventService';
 import { eventsClubsService} from '@/services/EventClubServices';
+import participantService from '@/services/participantService';
+import participantClubService from '@/services/participantClubService';
+import membreClubService, { MembreClub, RoleMembre } from '@/services/membreClubService';
 import { categoryService } from '@/services/categoryService';
+import { ParticipantStatus, getParticipantStatusDisplay } from '@/types/participant';
+import apiClient from '@/services/api';
 import {
   Users,
   MessageSquare,
@@ -24,6 +29,8 @@ import {
   Eye,
   EyeOff,
   UserX,
+  Clock,
+  ChevronDown,
   User as UserIcon, // Renamed to avoid conflict
   Shield,
   Edit,
@@ -41,7 +48,8 @@ import {
   Blocks,
   Folder,
   FolderPlus,
-  FolderEdit
+  FolderEdit,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -127,47 +135,7 @@ const getRoleBadge = (role) => {
   }
 };
 
-const initialPosts = [
-  {
-    id: "1",
-    author: "julien_m",
-    date: "2025-05-15T10:30:00",
-    content: "Notre nouveau site web est enfin en ligne ! Merci à toute l'équipe pour leur travail.",
-    reported: false
-  },
-  {
-    id: "2",
-    author: "sophie_d",
-    date: "2025-05-14T16:45:00",
-    content: "La réunion de demain est reportée à 14h. Merci de mettre à jour vos agendas.",
-    reported: false
-  },
-  {
-    id: "3",
-    author: "marc_p",
-    date: "2025-05-13T09:15:00",
-    content: "J'ai partagé des informations privées par erreur. Je suis vraiment désolé pour cette maladresse.",
-    reported: true,
-    reportedBy: "admin_user",
-    reason: "Contenu inapproprié"
-  },
-  {
-    id: "4",
-    author: "laure_t",
-    date: "2025-05-12T13:20:00",
-    content: "Consultez ce lien pour des offres exclusives: bit.ly/suspicious-link",
-    reported: true,
-    reportedBy: "julien_m",
-    reason: "Lien suspect"
-  },
-  {
-    id: "5",
-    author: "admin",
-    date: "2025-05-16T11:20:00",
-    content: "Bienvenue sur notre plateforme ! N'hésitez pas à partager vos idées dans le respect des règles de la communauté.",
-    reported: false
-  }
-];
+
 
 const AdminPage = () => {
   // State to track if there was a critical error
@@ -186,10 +154,11 @@ const AdminPage = () => {
   const [selectedRole, setSelectedRole] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [analytics, setAnalytics] = useState(analyticsData);
-  const [availableRoles, setAvailableRoles] = useState([]);
+  const [clubMembers, setClubMembers] = useState<MembreClub[]>([]);
+  const [isLoadingClubMembers, setIsLoadingClubMembers] = useState(false);
   const [allPosts, setAllPosts] = useState([]);
-  const [allEventsClub, setAllEventsClub] = useState([]);
-  const [allEvents, setAllEvents] = useState([]);
+  const [allEventsClub, setAllEventsClub] = useState<UIEvent[]>([]);
+  const [allEvents, setAllEvents] = useState<UIEvent[]>([]);
 
   const [allClubs, setAllClubs] = useState([]);
   const [filteredClubs, setFilteredClubs] = useState([]);
@@ -199,15 +168,23 @@ const AdminPage = () => {
     nom: '',
     description: '',
     categoryId: '',
-    etat: 'ACTIVE'
+    etat: 'ACTIVE',
+    image: null as string | null,
+    imageFile: null as File | null
   });
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
 
+  // Define Category interface
+  interface Category {
+    id: number;
+    nom: string;
+  }
+
   // Category management state
-  const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [newCategory, setNewCategory] = useState({ nom: '' });
-  const [editingCategory, setEditingCategory] = useState<CategoryDto | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [isAddCategoryDialogOpen, setIsAddCategoryDialogOpen] = useState(false);
   const [isEditCategoryDialogOpen, setIsEditCategoryDialogOpen] = useState(false);
 
@@ -269,7 +246,19 @@ const AdminPage = () => {
   }, []);
 
  const [activeTab, setActiveTab] = useState("moderation");
-  const [posts, setPosts] = useState(initialPosts);
+  // Define a proper type for posts
+  interface Post {
+    id: number | string;
+    author?: string;
+    content: string;
+    date?: string;
+    createdAt?: string;
+    reported?: boolean;
+    reportedBy?: string;
+    reason?: string;
+    image?: string | null;
+  }
+  const [posts, setPosts] = useState<Post[]>([]);
      const [newPost, setNewPost] = useState({
     content: '',
     image: null,
@@ -283,27 +272,7 @@ const AdminPage = () => {
 
   // Filter reported posts
 
-  // Handle approving a reported post
-  const handleApprovePost = async (postId) => {
-    try {
-      // In a real implementation, you would have an API endpoint for approving posts
-      // For now, we'll just update the local state
-      setReportedPosts(reportedPosts.filter(post => post.id !== postId));
 
-      setNotification({
-        type: "success",
-        message: "Publication approuvée avec succès"
-      });
-      setTimeout(() => setNotification(null), 3000);
-    } catch (error) {
-      console.error("Error approving post:", error);
-      setNotification({
-        type: "error",
-        message: "Erreur lors de l'approbation de la publication"
-      });
-      setTimeout(() => setNotification(null), 3000);
-    }
-  };
 
   // Handle removing a post
   const handleRemovePost = async (postId) => {
@@ -385,83 +354,13 @@ const AdminPage = () => {
     }
   };
 
-  // Save edited post
-  const saveEditedPost = () => {
-    setPosts(posts.map(post =>
-      post.id === editingPost.id ? editingPost : post
-    ));
-    setEditingPost(null);
-    setNotification({
-      type: "success",
-      message: "Publication modifiée avec succès"
-    });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  // Cancel editing
-  const handleEditPost = (post) => {
-    setEditingPost({
-      ...post,
-      // If you need to handle image editing, make sure to properly set up image preview
-    });
-  };
-
-  const cancelEditing = () => {
-    setEditingPost(null);
-  };
-
-  // Handle adding a new post
-  // const handleAddPost = () => {
-  //   if (newPost.content.trim() === "") return;
-
-  //   const currentDate = new Date().toISOString();
-  //   setPosts([
-  //     {
-  //       id: Date.now().toString(),
-  //       author: currentAdmin,
-  //       date: currentDate,
-  //       content: newPost.content,
-  //       reported: false
-  //     },
-  //     ...posts
-  //   ]);
-
-  //   setNewPost({ author: currentAdmin,image:"", imagePreview:"", content: "" });
-  //   setIsAdding(false);
-  //   setNotification({
-  //     type: "success",
-  //     message: "Publication ajoutée avec succès"
-  //   });
-  //   setTimeout(() => setNotification(null), 3000);
-  // };
 
 
 
-  // Fetch all data on component mount
-  const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      await Promise.all([
-        fetchUsers(),
-        fetchRoles(),
-        fetchPendingClubs(),
-        fetchAllClubs(),
-        fetchPosts(),
-        fetchEvents(),
-        fetchEventsClubs(),
-        fetchCategories()
-      ]);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast({
-        title: 'Erreur',
-        description: 'Échec du chargement des données',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+
+
+
 
   // Fetch categories
   const fetchCategories = async () => {
@@ -539,14 +438,17 @@ const AdminPage = () => {
         nom: club.nom || '',
         description: club.description || '',
         categoryId: club.categoryId ? club.categoryId.toString() : '',
-        etat: clubStatus
+        etat: clubStatus,
+        image: club.image || club.profilePhoto || null,
+        imageFile: null
       });
 
       console.log("Edit form data set:", {
         nom: club.nom || '',
         description: club.description || '',
         categoryId: club.categoryId ? club.categoryId.toString() : '',
-        etat: clubStatus
+        etat: clubStatus,
+        image: club.image || club.profilePhoto || null
       });
 
       // Open the edit dialog
@@ -732,8 +634,10 @@ const AdminPage = () => {
       console.log("Edit club data:", editClubData);
 
       // Convert categoryId to number before sending to backend
+      // Remove imageFile from the data sent to the backend
+      const { imageFile, ...restData } = editClubData;
       const updatedClubData = {
-        ...editClubData,
+        ...restData,
         categoryId: editClubData.categoryId ? parseInt(editClubData.categoryId) : undefined
       };
 
@@ -744,6 +648,25 @@ const AdminPage = () => {
       console.log("Status changed:", statusChanged, "Old:", selectedClub.etat, "New:", updatedClubData.etat);
 
       let updatedClub;
+
+      // Handle image upload if there's a new image file
+      if (editClubData.imageFile) {
+        console.log("Uploading new image for club");
+        try {
+          const imageUrl = await clubService.uploadImage(selectedClub.id, editClubData.imageFile);
+          console.log("Image uploaded successfully:", imageUrl);
+
+          // Update the image URL in the data to be sent
+          updatedClubData.image = imageUrl;
+        } catch (imageError) {
+          console.error("Error uploading image:", imageError);
+          toast({
+            title: 'Avertissement',
+            description: 'Impossible de télécharger l\'image. Les autres informations seront mises à jour.',
+            variant: 'destructive',
+          });
+        }
+      }
 
       // If only the status has changed, use updateClubStatus
       if (statusChanged && updatedClubData.etat) {
@@ -813,8 +736,31 @@ const AdminPage = () => {
   const fetchAllClubs = async () => {
     try {
       const clubs = await clubService.getAllClubs();
-      setAllClubs(clubs);
-      setFilteredClubs(clubs);
+
+      // For each club, update the member count if needed
+      const clubsWithUpdatedMemberCounts = await Promise.all(
+        clubs.map(async (club) => {
+          // If the club already has a member count, use it
+          if (club.membres !== undefined && club.membres !== null) {
+            return club;
+          }
+
+          try {
+            // Otherwise, fetch the members and update the count
+            const members = await membreClubService.getClubMembers(club.id);
+            return {
+              ...club,
+              membres: members.length
+            };
+          } catch (error) {
+            console.error(`Error fetching members for club ${club.id}:`, error);
+            return club;
+          }
+        })
+      );
+
+      setAllClubs(clubsWithUpdatedMemberCounts);
+      setFilteredClubs(clubsWithUpdatedMemberCounts);
     } catch (error) {
       console.error("Error fetching all clubs:", error);
       toast({
@@ -828,8 +774,8 @@ const AdminPage = () => {
   // Fetch all available roles from backend
   const fetchRoles = async () => {
     try {
-      const roles = await roleService.getAllRoles();
-      setAvailableRoles(roles);
+      // Just fetch roles but don't store them since we don't need them
+      await roleService.getAllRoles();
     } catch (error) {
       console.error("Error fetching roles:", error);
       toast({
@@ -856,12 +802,35 @@ const AdminPage = () => {
       // Fetch all clubs for analytics
       const allClubs = await clubService.getAllClubs();
 
+      // For each club, update the member count if needed
+      const clubsWithUpdatedMemberCounts = await Promise.all(
+        allClubs.map(async (club) => {
+          // If the club already has a member count, use it
+          if (club.membres !== undefined && club.membres !== null) {
+            return club;
+          }
+
+          try {
+            // Otherwise, fetch the members and update the count
+            const members = await membreClubService.getClubMembers(club.id);
+            return {
+              ...club,
+              membres: members.length
+            };
+          } catch (error) {
+            console.error(`Error fetching members for club ${club.id}:`, error);
+            return club;
+          }
+        })
+      );
+
+      // Update analytics with accurate member counts
       setAnalytics(prev => ({
         ...prev,
         clubs: {
-          total: allClubs.length,
-          active: allClubs.filter(club => club.etat === 'ACCEPTER').length,
-          members: allClubs.reduce((total, club) => total + (club.membres || 0), 0),
+          total: clubsWithUpdatedMemberCounts.length,
+          active: clubsWithUpdatedMemberCounts.filter(club => club.etat === 'ACCEPTER').length,
+          members: clubsWithUpdatedMemberCounts.reduce((total, club) => total + (club.membres || 0), 0),
           growth: '' // Removed percentage
         }
       }));
@@ -905,12 +874,15 @@ const AdminPage = () => {
   // Fetch posts
   const fetchPosts = async () => {
     try {
-      const posts = await PostsService.getAllPosts();
-      setAllPosts(posts);
+      const fetchedPosts = await PostsService.getAllPosts();
+      setAllPosts(fetchedPosts);
+
+      // Also update the posts state for the UI
+      setPosts(fetchedPosts);
 
       // For demo purposes, marking some posts as reported
       // In a real implementation, you would have a separate endpoint for reported posts
-      const mockReportedPosts = posts.slice(0, 3).map(post => ({
+      const mockReportedPosts = fetchedPosts.slice(0, 3).map(post => ({
         id: post.id,
         author: post.author || 'Anonymous',
         content: post.content,
@@ -923,14 +895,14 @@ const AdminPage = () => {
 
       // Update analytics
       const today = new Date().toISOString().split('T')[0];
-      const postsToday = posts.filter(post =>
+      const postsToday = fetchedPosts.filter(post =>
         post.createdAt && post.createdAt.startsWith(today)
       ).length;
 
       setAnalytics(prev => ({
         ...prev,
         posts: {
-          total: posts.length,
+          total: fetchedPosts.length,
           today: postsToday,
           reported: mockReportedPosts.length,
           growth: '' // Removed percentage
@@ -954,21 +926,23 @@ const AdminPage = () => {
       console.log("Regular events fetched:", events);
 
       // Map the events to a common format
-      const formattedEvents = events.map(event => ({
-        id: event.id,
-        name: event.titre || "Sans titre",
-        description: event.description || "",
-        location: event.lieu || "Non défini",
-        eventDate: event.dateDebut || new Date().toISOString(),
-        date: event.dateDebut || new Date().toISOString(),
-        createdAt: event.dateDebut || new Date().toISOString(),
-        status: event.status || "UPCOMING",
-        image: event.image || null,
-        participantCount: event.nbParticipants || 0,
-        participants: event.nbParticipants || 0,
-        organizer: "Administration",
-        eventType: "Standard"
-      }));
+      const formattedEvents = events.map(event => {
+        return {
+          id: event.id,
+          name: event.titre || "Sans titre",
+          description: event.description || "",
+          location: event.lieu || "Non défini",
+          eventDate: event.dateDebut || new Date().toISOString(),
+          date: event.dateDebut || new Date().toISOString(),
+          createdAt: event.dateDebut || new Date().toISOString(),
+          status: event.status || "UPCOMING",
+          image: event.image || null,
+          participantCount: event.nbParticipants || 0,
+          participants: event.nbParticipants || 0,
+          organizer: "Administration",
+          eventType: "Standard"
+        };
+      });
 
       setAllEvents(formattedEvents);
       setFilteredEvents(formattedEvents);
@@ -1002,21 +976,23 @@ const AdminPage = () => {
       console.log("Club events fetched:", eventsClubs);
 
       // Map the events to a common format
-      const formattedClubEvents = eventsClubs.map(event => ({
-        id: event.id,
-        name: event.titre || "Sans titre",
-        description: event.description || "",
-        location: event.lieu || "Non défini",
-        eventDate: event.dateDebut || new Date().toISOString(),
-        date: event.dateDebut || new Date().toISOString(),
-        createdAt: event.dateDebut || new Date().toISOString(),
-        status: event.status || "UPCOMING",
-        image: event.image || null,
-        participantCount: event.nbParticipants || 0,
-        participants: event.nbParticipants || 0,
-        organizer: event.nomClub || "Club",
-        eventType: "Club"
-      }));
+      const formattedClubEvents = eventsClubs.map(event => {
+        return {
+          id: event.id,
+          name: event.titre || "Sans titre",
+          description: event.description || "",
+          location: event.lieu || "Non défini",
+          eventDate: event.dateDebut || new Date().toISOString(),
+          date: event.dateDebut || new Date().toISOString(),
+          createdAt: event.dateDebut || new Date().toISOString(),
+          status: event.status || "UPCOMING",
+          image: event.image || null,
+          participantCount: event.nbParticipants || 0,
+          participants: event.nbParticipants || 0,
+          organizer: event.nomClub || "Club",
+          eventType: "Club"
+        };
+      });
 
       setAllEventsClub(formattedClubEvents);
       setFilteredEventsClubs(formattedClubEvents);
@@ -1036,8 +1012,7 @@ const AdminPage = () => {
   };
 
   // Update analytics with combined events data
-  const updateEventAnalytics = (regularEvents: any[], clubEvents: any[]) => {
-    const today = new Date();
+  const updateEventAnalytics = useCallback((regularEvents: UIEvent[], clubEvents: UIEvent[]) => {
     const allEventsArray = [...regularEvents, ...clubEvents];
 
     // Count events with AVENIR status
@@ -1058,7 +1033,7 @@ const AdminPage = () => {
         growth: '' // Removed percentage
       }
     }));
-  };
+  }, []);
 
   // Fetch users from backend
   const fetchUsers = async () => {
@@ -1176,7 +1151,7 @@ const AdminPage = () => {
     }
   };
 
-  const handleEditCategory = (category: CategoryDto) => {
+  const handleEditCategory = (category: Category) => {
     setEditingCategory(category);
     setIsEditCategoryDialogOpen(true);
   };
@@ -1378,6 +1353,53 @@ const AdminPage = () => {
     }
   };
 
+  // Fetch club members
+  const fetchClubMembers = async (clubId: number) => {
+    try {
+      setIsLoadingClubMembers(true);
+      console.log("Fetching members for club ID:", clubId);
+
+      const members = await membreClubService.getClubMembers(clubId);
+      console.log("Fetched club members:", members);
+
+      // Update the member count in the selected club
+      if (selectedClub && selectedClub.id === clubId) {
+        const memberCount = members.length;
+        console.log(`Updating member count for club ${clubId} to ${memberCount}`);
+
+        // Update the selected club with the new member count
+        setSelectedClub(prev => ({
+          ...prev,
+          membres: memberCount
+        }));
+
+        // Also update the club in the allClubs array
+        setAllClubs(prev => prev.map(club =>
+          club.id === clubId ? { ...club, membres: memberCount } : club
+        ));
+
+        // Update the filtered clubs as well
+        setFilteredClubs(prev => prev.map(club =>
+          club.id === clubId ? { ...club, membres: memberCount } : club
+        ));
+      }
+
+      setClubMembers(members);
+
+      return members;
+    } catch (error) {
+      console.error("Error fetching club members:", error);
+      toast({
+        title: 'Erreur',
+        description: 'Échec du chargement des membres du club. Veuillez réessayer.',
+        variant: 'destructive',
+      });
+      return [];
+    } finally {
+      setIsLoadingClubMembers(false);
+    }
+  };
+
   // Handle club details view
   const handleViewClubDetails = async (clubId) => {
     try {
@@ -1390,6 +1412,19 @@ const AdminPage = () => {
 
       // Make sure we have the latest data
       setSelectedClub(clubDetail);
+
+      // Fetch club members and update the member count
+      const members = await fetchClubMembers(clubId);
+
+      // Update the member count in the club detail
+      const updatedClubDetail = {
+        ...clubDetail,
+        membres: members.length
+      };
+
+      // Update the selected club with the correct member count
+      setSelectedClub(updatedClubDetail);
+
       setIsClubDetailDialogOpen(true);
     } catch (error) {
       console.error("Error fetching club details:", error);
@@ -1628,14 +1663,14 @@ const DeleteUser = async (userId: number): Promise<void> => {
 
 
   const [eventSearchQuery, setEventSearchQuery] = useState('');
-const [filteredEvents, setFilteredEvents] = useState([]);
-const [filteredEventsClubs, setFilteredEventsClubs] = useState([]);
+const [filteredEvents, setFilteredEvents] = useState<UIEvent[]>([]);
+const [filteredEventsClubs, setFilteredEventsClubs] = useState<UIEvent[]>([]);
 // Removed eventRequests state as it's no longer needed
 const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-const [editingEvent, setEditingEvent] = useState(null);
+const [editingEvent, setEditingEvent] = useState<UIEvent | null>(null);
 const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
 const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-const [selectedEvent, setSelectedEvent] = useState(null);
+const [selectedEvent, setSelectedEvent] = useState<UIEvent | null>(null);
 const [eventToDeleteId, setEventToDeleteId] = useState(null);
 const [showCreateEventDialog, setShowCreateEventDialog] = useState(false);
 const [newEventData, setNewEventData] = useState({
@@ -1643,8 +1678,85 @@ const [newEventData, setNewEventData] = useState({
   description: '',
   date: '',
   location: '',
-  status: 'AVENIR'
+  status: 'AVENIR',
+  image: null as string | null,
+  imageFile: null as File | null
 });
+
+// Define Event interface for the UI
+interface UIEvent {
+  id: number;
+  name: string;
+  description: string;
+  location: string;
+  eventDate: string;
+  date: string;
+  createdAt: string;
+  status: string;
+  image: string | null;
+  participantCount: number;
+  participants: number;
+  organizer: string;
+  eventType: string;
+  category?: string;
+}
+
+// Define participant type to match backend model
+interface Participant {
+  id: number;
+  userId: number;
+  // For regular events
+  event?: {
+    id: number;
+    titre: string;
+    description: string;
+    lieu: string;
+    dateDebut: string;
+    dateFin: string;
+    createurId: number;
+    status?: string;
+    nbParticipants?: number;
+    image?: string;
+  };
+  // For club events
+  eventClub?: {
+    id: number;
+    titre: string;
+    description: string;
+    lieu: string;
+    dateDebut: string;
+    dateFin: string;
+    createurId: number;
+    nomClub?: string;
+    clubId?: number;
+    status?: string;
+    nbParticipants?: number;
+    image?: string;
+  };
+  dateInscription: string;
+  status: 'CONFIRMED' | 'PENDING' | 'CANCELLED';
+  // Additional fields for UI display
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  user?: {
+    id: number;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    image?: string;
+    departement?: string;
+    phoneNumber?: string;
+    address?: string;
+    biographie?: string;
+    dateOfBirth?: Date;
+    createdTimes?: Date;
+  };
+}
+
+// Participant management state
+const [eventParticipants, setEventParticipants] = useState<Participant[]>([]);
+const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
 
 // No longer using sample event requests
 
@@ -1659,7 +1771,230 @@ const [newEventData, setNewEventData] = useState({
     if (allEvents.length > 0 || allEventsClub.length > 0) {
       updateEventAnalytics(allEvents, allEventsClub);
     }
-  }, [allEvents, allEventsClub]);
+  }, [allEvents, allEventsClub, updateEventAnalytics]);
+
+  // Function to fetch participants for an event
+  const fetchEventParticipants = async (eventId: number, eventType: string) => {
+    setIsLoadingParticipants(true);
+
+    // Clear previous participants immediately
+    setEventParticipants([]);
+
+    try {
+      // Make sure we're using the correct event ID (convert to number)
+      const numericEventId = Number(eventId);
+      console.log(`Fetching participants for event ID: ${numericEventId}, type: ${eventType}`);
+
+      let participants: Participant[] = [];
+
+      if (eventType === "Club") {
+        // Fetch club event participants
+        const clubParticipants = await participantClubService.getEventParticipants(numericEventId);
+        console.log(`Club participants for event ${numericEventId}:`, clubParticipants);
+
+        // Convert to our Participant interface
+        participants = clubParticipants.map(p => {
+          // Make sure we have a valid eventClub object
+          const eventClubData = p.eventClub ? {
+            id: numericEventId, // Always use the requested eventId to ensure consistency
+            titre: p.eventClub.titre || '',
+            description: p.eventClub.description || '',
+            lieu: p.eventClub.lieu || '',
+            dateDebut: p.eventClub.dateDebut || new Date().toISOString(),
+            dateFin: p.eventClub.dateFin || new Date().toISOString(),
+            createurId: p.eventClub.createurId || 0,
+            nomClub: p.eventClub.nomClub || '',
+            clubId: p.eventClub.clubId || 0,
+            status: p.eventClub.status || 'ACTIVE',
+            nbParticipants: p.eventClub.nbParticipants || 0,
+            image: p.eventClub.image || null
+          } : {
+            id: numericEventId, // Provide a fallback with the correct eventId
+            titre: '',
+            description: '',
+            lieu: '',
+            dateDebut: new Date().toISOString(),
+            dateFin: new Date().toISOString(),
+            createurId: 0,
+            nomClub: '',
+            clubId: 0,
+            status: 'ACTIVE',
+            nbParticipants: 0,
+            image: null
+          };
+
+          return {
+            id: p.id || 0,
+            userId: p.userId,
+            eventClub: eventClubData,
+            dateInscription: p.dateInscription || new Date().toISOString(),
+            status: (p.status as 'CONFIRMED' | 'PENDING' | 'CANCELLED') || 'CONFIRMED',
+            firstName: p.firstName || p.user?.firstName || '',
+            lastName: p.lastName || p.user?.lastName || '',
+            email: p.email || p.user?.email || '',
+            user: p.user
+          };
+        });
+      } else {
+        // Fetch regular event participants
+        const eventParticipants = await participantService.getEventParticipants(numericEventId);
+        console.log(`Regular event participants for event ${numericEventId}:`, eventParticipants);
+
+        // Convert to our Participant interface
+        participants = eventParticipants.map(p => {
+          // Make sure we have a valid event object
+          const eventData = p.event ? {
+            id: numericEventId, // Always use the requested eventId to ensure consistency
+            titre: p.event.titre || '',
+            description: p.event.description || '',
+            lieu: p.event.lieu || '',
+            dateDebut: p.event.dateDebut || new Date().toISOString(),
+            dateFin: p.event.dateFin || new Date().toISOString(),
+            createurId: p.event.createurId || 0,
+            status: p.event.status || 'ACTIVE',
+            nbParticipants: p.event.nbParticipants || 0,
+            image: p.event.image || null
+          } : {
+            id: numericEventId, // Provide a fallback with the correct eventId
+            titre: '',
+            description: '',
+            lieu: '',
+            dateDebut: new Date().toISOString(),
+            dateFin: new Date().toISOString(),
+            createurId: 0,
+            status: 'ACTIVE',
+            nbParticipants: 0,
+            image: null
+          };
+
+          return {
+            id: p.id || 0,
+            userId: p.userId,
+            event: eventData,
+            dateInscription: p.dateInscription || new Date().toISOString(),
+            status: (p.status as 'CONFIRMED' | 'PENDING' | 'CANCELLED') || 'CONFIRMED',
+            firstName: p.firstName || p.user?.firstName || '',
+            lastName: p.lastName || p.user?.lastName || '',
+            email: p.email || p.user?.email || '',
+            user: p.user
+          };
+        });
+      }
+
+      console.log(`Found ${participants.length} participants for ${eventType} event ${numericEventId}`);
+
+      if (participants.length === 0) {
+        // If no participants, update the UI and return early
+        // Find the current event again to make sure we're updating the correct one
+        const currentEvent = selectedEvent && Number(selectedEvent.id) === numericEventId
+          ? selectedEvent
+          : allEvents.find(e => Number(e.id) === numericEventId) ||
+            allEventsClub.find(e => Number(e.id) === numericEventId);
+
+        if (currentEvent) {
+          // Only update if the selected event matches the requested event ID
+          if (selectedEvent && Number(selectedEvent.id) === numericEventId) {
+            setSelectedEvent({
+              ...selectedEvent,
+              participantCount: 0,
+              participants: 0
+            });
+          }
+        }
+
+        toast({
+          title: "Information",
+          description: "Aucun participant trouvé pour cet événement.",
+        });
+
+        setIsLoadingParticipants(false);
+        return;
+      }
+
+      // Process participants and fetch user details for each participant
+      const processedParticipants = await Promise.all(
+        participants.map(async (participant) => {
+          try {
+            // Fetch user details from the backend
+            const user = await userService.getUserById(participant.userId);
+            console.log(`User details for participant ${participant.userId}:`, user);
+
+            return {
+              ...participant,
+              firstName: user.firstName || '',
+              lastName: user.lastName || '',
+              email: user.email || '',
+              status: (participant.status as 'CONFIRMED' | 'PENDING' | 'CANCELLED') || 'CONFIRMED',
+              user: {
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                image: user.image,
+                departement: user.departement,
+                phoneNumber: user.phoneNumber,
+                address: user.address,
+                biographie: user.biographie,
+                dateOfBirth: user.dateOfBirth,
+                createdTimes: user.createdTimes
+              }
+            };
+          } catch (error) {
+            console.error(`Error fetching user details for participant ${participant.userId}:`, error);
+            // Return participant with minimal info if user details can't be fetched
+            return {
+              ...participant,
+              firstName: '',
+              lastName: '',
+              email: '',
+              status: (participant.status as 'CONFIRMED' | 'PENDING' | 'CANCELLED') || 'CONFIRMED'
+            };
+          }
+        })
+      );
+
+      setEventParticipants(processedParticipants);
+
+      // Update the participant count in the selected event
+      // Only update if the selected event matches the requested event ID
+      if (selectedEvent && Number(selectedEvent.id) === numericEventId) {
+        console.log(`Updating selected event (ID: ${selectedEvent.id}) with ${processedParticipants.length} participants`);
+        setSelectedEvent({
+          ...selectedEvent,
+          participantCount: processedParticipants.length,
+          participants: processedParticipants.length
+        });
+      }
+
+      toast({
+        title: "Participants chargés",
+        description: `${processedParticipants.length} participant(s) trouvé(s) pour cet événement.`,
+      });
+    } catch (error) {
+      console.error(`Error fetching participants for ${eventType} event ${eventId}:`, error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les participants.",
+        variant: "destructive",
+      });
+
+      // Update the participant count to 0 in case of error
+      // Only update if the selected event matches the requested event ID
+      if (selectedEvent && Number(selectedEvent.id) === Number(eventId)) {
+        setSelectedEvent({
+          ...selectedEvent,
+          participantCount: 0,
+          participants: 0
+        });
+      }
+    } finally {
+      setIsLoadingParticipants(false);
+    }
+  };
+
+
+
+
 
   // Filter events when search query changes
   useEffect(() => {
@@ -1691,44 +2026,70 @@ const [newEventData, setNewEventData] = useState({
 
 
 /**************************************************event codes and requests**************************************************/
-  const fetchPendingEvents = async () => {
-    setIsLoading(true);
-    try {
-      // In a real implementation, you would have an API endpoint for pending events
-      // For now, we'll just refresh the events
-      await fetchEvents();
 
-      toast({
-        title: "Données actualisées",
-        description: "La liste des événements a été mise à jour.",
-      });
-    } catch (error) {
-      console.error("Error fetching pending events:", error);
-      toast({
-        title: 'Erreur',
-        description: 'Échec du chargement des événements en attente',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Function to view regular event details
   const handleViewEventDetails = (id: number) => {
-    console.log("Viewing event details for ID:", id);
+    console.log("Viewing regular event details for ID:", id);
 
-    // Find the event in both regular events and club events
-    const regularEvent = allEvents.find(e => e.id === id);
-    const clubEvent = allEventsClub.find(e => e.id === id);
+    // First close the dialog to ensure a clean state
+    setIsDetailsDialogOpen(false);
 
-    const event = regularEvent || clubEvent;
+    // Clear previous participants immediately to avoid showing wrong data
+    setEventParticipants([]);
 
-    if (event) {
-      console.log("Found event:", event);
-      setSelectedEvent(event);
-      setIsDetailsDialogOpen(true);
+    // Convert id to number to ensure correct comparison
+    const eventId = Number(id);
+
+    // Find the event in regular events only
+    const regularEvent = allEvents.find(e => Number(e.id) === eventId);
+
+    // Debug the event lookup
+    console.log("Looking for regular event with ID:", eventId);
+    console.log("Found regular event:", regularEvent);
+
+    if (regularEvent) {
+      console.log("Found regular event:", regularEvent);
+
+      // Create a fresh copy of the event to avoid reference issues
+      const eventCopy = JSON.parse(JSON.stringify(regularEvent));
+
+      // Set the selected event with a temporary participant count
+      // This will be updated when we fetch the actual participants
+      const newSelectedEvent = {
+        ...eventCopy,
+        eventType: "Standard", // Explicitly set the event type
+        participantCount: 0,
+        participants: 0
+      };
+
+      console.log("Setting selected event to:", newSelectedEvent);
+
+      // Reset the selected event to force a complete re-render
+      setSelectedEvent(null);
+
+      // Use requestAnimationFrame to ensure the state update has time to propagate
+      requestAnimationFrame(() => {
+        // Set the new selected event
+        setSelectedEvent(newSelectedEvent);
+
+        // Open the dialog after setting the event
+        setIsDetailsDialogOpen(true);
+
+        // Fetch participants for the event
+        try {
+          console.log(`Fetching participants for regular event ${eventId}`);
+          fetchEventParticipants(eventId, "Standard");
+        } catch (error) {
+          console.error("Error fetching participants:", error);
+          toast({
+            title: "Erreur",
+            description: "Impossible de charger les participants.",
+            variant: "destructive",
+          });
+        }
+      });
     } else {
-      console.error("Event not found with ID:", id);
+      console.error("Regular event not found with ID:", id);
       toast({
         title: "Erreur",
         description: "Impossible de trouver les détails de cet événement.",
@@ -1737,7 +2098,246 @@ const [newEventData, setNewEventData] = useState({
     }
   };
 
-  const handleOpenEditEventDialog = (event: any) => {
+  // Function to fetch participants for a club event
+  const fetchClubEventParticipants = async (eventId: number) => {
+    setIsLoadingParticipants(true);
+
+    // Clear previous participants immediately
+    setEventParticipants([]);
+
+    try {
+      // Make sure we're using the correct event ID (convert to number)
+      const numericEventId = Number(eventId);
+      console.log(`Fetching participants for club event ID: ${numericEventId}`);
+
+      // Fetch club event participants using the dedicated service
+      const clubParticipants = await participantClubService.getEventParticipants(numericEventId);
+      console.log(`Club participants for event ${numericEventId}:`, clubParticipants);
+
+      if (clubParticipants.length === 0) {
+        // If no participants, update the UI and return early
+        if (selectedEvent && Number(selectedEvent.id) === numericEventId) {
+          setSelectedEvent({
+            ...selectedEvent,
+            participantCount: 0,
+            participants: 0
+          });
+        }
+
+        toast({
+          title: "Information",
+          description: "Aucun participant trouvé pour cet événement de club.",
+        });
+
+        setIsLoadingParticipants(false);
+        return;
+      }
+
+      // Convert to our Participant interface
+      const participants = clubParticipants.map(p => {
+        // Make sure we have a valid eventClub object
+        const eventClubData = p.eventClub ? {
+          id: numericEventId, // Always use the requested eventId to ensure consistency
+          titre: p.eventClub.titre || '',
+          description: p.eventClub.description || '',
+          lieu: p.eventClub.lieu || '',
+          dateDebut: p.eventClub.dateDebut || new Date().toISOString(),
+          dateFin: p.eventClub.dateFin || new Date().toISOString(),
+          createurId: p.eventClub.createurId || 0,
+          nomClub: p.eventClub.nomClub || '',
+          clubId: p.eventClub.clubId || 0,
+          status: p.eventClub.status || 'ACTIVE',
+          nbParticipants: p.eventClub.nbParticipants || 0,
+          image: p.eventClub.image || null
+        } : {
+          id: numericEventId, // Provide a fallback with the correct eventId
+          titre: '',
+          description: '',
+          lieu: '',
+          dateDebut: new Date().toISOString(),
+          dateFin: new Date().toISOString(),
+          createurId: 0,
+          nomClub: '',
+          clubId: 0,
+          status: 'ACTIVE',
+          nbParticipants: 0,
+          image: null
+        };
+
+        return {
+          id: p.id || 0,
+          userId: p.userId,
+          eventClub: eventClubData,
+          dateInscription: p.dateInscription || new Date().toISOString(),
+          status: (p.status as 'CONFIRMED' | 'PENDING' | 'CANCELLED') || 'CONFIRMED',
+          firstName: p.firstName || p.user?.firstName || '',
+          lastName: p.lastName || p.user?.lastName || '',
+          email: p.email || p.user?.email || '',
+          user: p.user
+        };
+      });
+
+      // Process participants and fetch user details for each participant
+      const processedParticipants = await Promise.all(
+        participants.map(async (participant) => {
+          try {
+            // Fetch user details from the backend
+            const user = await userService.getUserById(participant.userId);
+            console.log(`User details for club participant ${participant.userId}:`, user);
+
+            return {
+              ...participant,
+              firstName: user.firstName || '',
+              lastName: user.lastName || '',
+              email: user.email || '',
+              status: (participant.status as 'CONFIRMED' | 'PENDING' | 'CANCELLED') || 'CONFIRMED',
+              user: {
+                id: user.id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                image: user.image,
+                departement: user.departement,
+                phoneNumber: user.phoneNumber,
+                address: user.address,
+                biographie: user.biographie,
+                dateOfBirth: user.dateOfBirth,
+                createdTimes: user.createdTimes
+              }
+            };
+          } catch (error) {
+            console.error(`Error fetching user details for club participant ${participant.userId}:`, error);
+            // Return participant with minimal info if user details can't be fetched
+            return {
+              ...participant,
+              firstName: '',
+              lastName: '',
+              email: '',
+              status: (participant.status as 'CONFIRMED' | 'PENDING' | 'CANCELLED') || 'CONFIRMED'
+            };
+          }
+        })
+      );
+
+      setEventParticipants(processedParticipants);
+
+      // Update the participant count in the selected event
+      if (selectedEvent && Number(selectedEvent.id) === numericEventId) {
+        console.log(`Updating selected club event (ID: ${selectedEvent.id}) with ${processedParticipants.length} participants`);
+        setSelectedEvent({
+          ...selectedEvent,
+          participantCount: processedParticipants.length,
+          participants: processedParticipants.length
+        });
+      }
+
+      toast({
+        title: "Participants chargés",
+        description: `${processedParticipants.length} participant(s) trouvé(s) pour cet événement de club.`,
+      });
+    } catch (error) {
+      console.error(`Error fetching participants for club event ${eventId}:`, error);
+
+      // Log more detailed error information
+      if (error.response) {
+        console.error('Error response:', error.response.status, error.response.data);
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+      } else {
+        console.error('Error setting up request:', error.message);
+      }
+
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les participants de l'événement de club.",
+        variant: "destructive",
+      });
+
+      // Update the participant count to 0 in case of error
+      if (selectedEvent && Number(selectedEvent.id) === Number(eventId)) {
+        setSelectedEvent({
+          ...selectedEvent,
+          participantCount: 0,
+          participants: 0
+        });
+      }
+    } finally {
+      setIsLoadingParticipants(false);
+    }
+  };
+
+  // Function to view club event details
+  const handleViewClubEventDetails = (id: number) => {
+    console.log("Viewing club event details for ID:", id);
+
+    // First close the dialog to ensure a clean state
+    setIsDetailsDialogOpen(false);
+
+    // Clear previous participants immediately to avoid showing wrong data
+    setEventParticipants([]);
+
+    // Convert id to number to ensure correct comparison
+    const eventId = Number(id);
+
+    // Find the event in club events only
+    const clubEvent = allEventsClub.find(e => Number(e.id) === eventId);
+
+    // Debug the event lookup
+    console.log("Looking for club event with ID:", eventId);
+    console.log("Found club event:", clubEvent);
+
+    if (clubEvent) {
+      console.log("Found club event:", clubEvent);
+
+      // Create a fresh copy of the event to avoid reference issues
+      const eventCopy = JSON.parse(JSON.stringify(clubEvent));
+
+      // Set the selected event with a temporary participant count
+      // This will be updated when we fetch the actual participants
+      const newSelectedEvent = {
+        ...eventCopy,
+        eventType: "Club", // Explicitly set the event type
+        participantCount: 0,
+        participants: 0
+      };
+
+      console.log("Setting selected event to:", newSelectedEvent);
+
+      // Reset the selected event to force a complete re-render
+      setSelectedEvent(null);
+
+      // Use requestAnimationFrame to ensure the state update has time to propagate
+      requestAnimationFrame(() => {
+        // Set the new selected event
+        setSelectedEvent(newSelectedEvent);
+
+        // Open the dialog after setting the event
+        setIsDetailsDialogOpen(true);
+
+        // Fetch participants for the event using the dedicated club event participants function
+        try {
+          console.log(`Fetching participants for club event ${eventId}`);
+          fetchClubEventParticipants(eventId);
+        } catch (error) {
+          console.error("Error fetching club event participants:", error);
+          toast({
+            title: "Erreur",
+            description: "Impossible de charger les participants de l'événement de club.",
+            variant: "destructive",
+          });
+        }
+      });
+    } else {
+      console.error("Club event not found with ID:", id);
+      toast({
+        title: "Erreur",
+        description: "Impossible de trouver les détails de cet événement de club.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOpenEditEventDialog = (event: UIEvent) => {
     setEditingEvent(event);
     setIsEditDialogOpen(true);
   };
@@ -1753,9 +2353,7 @@ const [newEventData, setNewEventData] = useState({
       const isClubEvent = editingEvent.eventType === "Club";
 
       // Format the date properly
-      const dateTime = editingEvent.eventDate instanceof Date
-        ? editingEvent.eventDate.toISOString()
-        : new Date(editingEvent.eventDate).toISOString();
+      const dateTime = new Date(editingEvent.eventDate).toISOString();
 
       // Prepare the update data with the correct field names
       const updateData = {
@@ -1773,11 +2371,25 @@ const [newEventData, setNewEventData] = useState({
       // Use admin ID (1) as the creator ID for admin operations
       const adminId = 1;
 
-      let updatedEvent: any;
+      let updatedEvent: {
+        id: number;
+        titre?: string;
+        description?: string;
+        lieu?: string;
+        dateDebut?: string;
+        dateFin?: string;
+        status?: string;
+        image?: string | null;
+        nbParticipants?: number;
+        nomClub?: string;
+      };
+
       if (isClubEvent) {
-        updatedEvent = await eventsClubsService.updateEvent(editingEvent.id, updateData, adminId);
+        const result = await eventsClubsService.updateEvent(editingEvent.id, updateData, adminId);
+        updatedEvent = { id: result.id || editingEvent.id, ...result };
       } else {
-        updatedEvent = await EventsService.updateEvent(editingEvent.id, updateData, adminId);
+        const result = await EventsService.updateEvent(editingEvent.id, updateData, adminId);
+        updatedEvent = { id: result.id || editingEvent.id, ...result };
       }
 
       console.log("Updated event response:", updatedEvent);
@@ -1860,8 +2472,8 @@ const handleDeleteEventConfirmation = (eventId: number): void => {
   console.log("Preparing to delete event:", eventId);
 
   // Check if this is a regular event or a club event
-  const isRegularEvent = allEvents.some(e => e.id === eventId);
-  const isClubEvent = allEventsClub.some(e => e.id === eventId);
+  const isRegularEvent = allEvents.some(e => Number(e.id) === Number(eventId));
+  const isClubEvent = allEventsClub.some(e => Number(e.id) === Number(eventId));
 
   console.log("Is regular event:", isRegularEvent);
   console.log("Is club event:", isClubEvent);
@@ -1880,8 +2492,8 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
 
   try {
     // Trouver l'événement à annuler
-    const eventToCancel = allEvents.find(e => e.id === eventId);
-    const clubEventToCancel = allEventsClub.find(e => e.id === eventId);
+    const eventToCancel = allEvents.find(e => Number(e.id) === Number(eventId));
+    const clubEventToCancel = allEventsClub.find(e => Number(e.id) === Number(eventId));
 
     // Determine if this is a club event or regular event
     const isClubEvent = !!clubEventToCancel;
@@ -1909,11 +2521,25 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
     // Use admin ID (1) as the creator ID for admin operations
     const adminId = 1;
 
-    let updatedEvent: any;
+    let updatedEvent: {
+      id: number;
+      titre?: string;
+      description?: string;
+      lieu?: string;
+      dateDebut?: string;
+      dateFin?: string;
+      status?: string;
+      image?: string | null;
+      nbParticipants?: number;
+      nomClub?: string;
+    };
+
     if (isClubEvent) {
-      updatedEvent = await eventsClubsService.updateEvent(eventId, updateData, adminId);
+      const result = await eventsClubsService.updateEvent(eventId, updateData, adminId);
+      updatedEvent = { id: result.id || eventId, ...result };
     } else {
-      updatedEvent = await EventsService.updateEvent(eventId, updateData, adminId);
+      const result = await EventsService.updateEvent(eventId, updateData, adminId);
+      updatedEvent = { id: result.id || eventId, ...result };
     }
 
     console.log("Updated event after cancellation:", updatedEvent);
@@ -1932,7 +2558,7 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
     // Mettre à jour l'état local approprié
     if (isClubEvent) {
       const updatedClubEvents = allEventsClub.map(event =>
-        event.id === eventId ? formattedUpdatedEvent : event
+        Number(event.id) === Number(eventId) ? formattedUpdatedEvent : event
       );
       setAllEventsClub(updatedClubEvents);
       setFilteredEventsClubs(updatedClubEvents.filter(event => {
@@ -1945,7 +2571,7 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
       }));
     } else {
       const updatedEvents = allEvents.map(event =>
-        event.id === eventId ? formattedUpdatedEvent : event
+        Number(event.id) === Number(eventId) ? formattedUpdatedEvent : event
       );
       setAllEvents(updatedEvents);
       setFilteredEvents(updatedEvents.filter(event => {
@@ -1959,7 +2585,7 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
     }
 
     // Update the selected event if it's currently being viewed
-    if (selectedEvent && selectedEvent.id === eventId) {
+    if (selectedEvent && Number(selectedEvent.id) === Number(eventId)) {
       setSelectedEvent(formattedUpdatedEvent);
     }
 
@@ -1981,7 +2607,15 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
 
 // Fonction pour créer un nouvel événement
 // This function is used in the "Nouvel événement" button onClick handler
-const createEvent = async (eventData: { name: string; description: string; date: string; location: string; status: string }): Promise<void> => {
+const createEvent = async (eventData: {
+  name: string;
+  description: string;
+  date: string;
+  location: string;
+  status: string;
+  image?: string | null;
+  imageFile?: File | null;
+}): Promise<void> => {
   setIsLoading(true);
   console.log("Creating new event:", eventData);
 
@@ -2012,6 +2646,21 @@ const createEvent = async (eventData: { name: string; description: string; date:
 
     console.log("New event response:", newEvent);
 
+    // If there's an image file, upload it
+    let imageUrl = null;
+    if (eventData.imageFile) {
+      try {
+        imageUrl = await EventsService.uploadImage(newEvent.id, eventData.imageFile);
+        console.log("Image uploaded successfully:", imageUrl);
+      } catch (imageError) {
+        console.error("Error uploading image:", imageError);
+        toast({
+          title: "Avertissement",
+          description: "L'événement a été créé mais l'image n'a pas pu être téléchargée.",
+        });
+      }
+    }
+
     // Format the new event to match our UI format
     const formattedNewEvent = {
       id: newEvent.id,
@@ -2022,11 +2671,11 @@ const createEvent = async (eventData: { name: string; description: string; date:
       date: newEvent.dateDebut || dateTime,
       createdAt: new Date().toISOString(),
       status: newEvent.status || eventData.status,
-      image: newEvent.image || null,
+      image: imageUrl || newEvent.image || null,
       participantCount: 0,
       participants: 0,
       organizer: "Administration",
-      eventType: "Université"
+      eventType: "Standard"
     };
 
     // Update the local state
@@ -2040,7 +2689,9 @@ const createEvent = async (eventData: { name: string; description: string; date:
       description: '',
       date: '',
       location: '',
-      status: 'AVENIR'
+      status: 'AVENIR',
+      image: null,
+      imageFile: null
     });
 
     toast({
@@ -2244,7 +2895,14 @@ const createEvent = async (eventData: { name: string; description: string; date:
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleApprovePost(post.id)}
+                              onClick={() => {
+                                // Remove from reported posts
+                                setReportedPosts(reportedPosts.filter(p => p.id !== post.id));
+                                toast({
+                                  title: "Succès",
+                                  description: "Publication approuvée avec succès",
+                                });
+                              }}
                             >
                               <CheckCircle size={16} className="mr-1" /> Approuver
                             </Button>
@@ -2330,7 +2988,12 @@ const createEvent = async (eventData: { name: string; description: string; date:
               type="file"
               className="hidden"
               accept="image/*"
+              onClick={(e) => {
+                // Reset the value to ensure onChange fires even if the same file is selected
+                (e.target as HTMLInputElement).value = '';
+              }}
               onChange={(e) => {
+                e.preventDefault(); // Prevent form submission
                 if (e.target.files && e.target.files[0]) {
                   setNewPost({
                     ...newPost,
@@ -2421,14 +3084,23 @@ const createEvent = async (eventData: { name: string; description: string; date:
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={cancelEditing}
+                onClick={() => setEditingPost(null)}
               >
                 <X size={16} className="mr-1" /> Annuler
               </Button>
               <Button
                 variant="default"
                 size="sm"
-                onClick={saveEditedPost}
+                onClick={() => {
+                  setPosts(posts.map(post =>
+                    post.id === editingPost.id ? editingPost : post
+                  ));
+                  setEditingPost(null);
+                  toast({
+                    title: "Succès",
+                    description: "Publication modifiée avec succès",
+                  });
+                }}
               >
                 <Check size={16} className="mr-1" /> Enregistrer
               </Button>
@@ -2465,7 +3137,7 @@ const createEvent = async (eventData: { name: string; description: string; date:
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleEditPost(post)}
+                  onClick={() => setEditingPost({...post})}
                 >
                   <Edit size={16} className="mr-1" /> Modifier
                 </Button>
@@ -2674,7 +3346,7 @@ const createEvent = async (eventData: { name: string; description: string; date:
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchPendingEvents}
+            onClick={fetchEvents}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -2742,16 +3414,16 @@ const createEvent = async (eventData: { name: string; description: string; date:
                         )}
                       </div>
                       <div className="truncate">
-                        <div className="font-medium truncate" title={event.titre || event.name}>{event.titre || event.name}</div>
+                        <div className="font-medium truncate" title={event.name}>{event.name}</div>
                         <div className="text-xs text-muted-foreground">
                           Université
                         </div>
                         <div className="flex md:hidden mt-1 space-x-2">
                           <span className="text-xs bg-gray-100 px-2 py-1 rounded-full">
-                            {new Date(event.dateDebut || event.eventDate).toLocaleDateString()}
+                            {new Date(event.eventDate).toLocaleDateString()}
                           </span>
                           <span className="text-xs bg-gray-100 px-2 py-1 rounded-full truncate">
-                            {event.lieu || event.location || "Non défini"}
+                            {event.location || "Non défini"}
                           </span>
                         </div>
                       </div>
@@ -2759,12 +3431,12 @@ const createEvent = async (eventData: { name: string; description: string; date:
 
                     {/* Date - hidden on mobile */}
                     <div className="hidden md:block text-xs">
-                      {new Date(event.dateDebut || event.eventDate).toLocaleDateString()}
+                      {new Date(event.eventDate).toLocaleDateString()}
                     </div>
 
                     {/* Location - hidden on mobile */}
-                    <div className="hidden md:block text-xs truncate" title={event.lieu || event.location || "Non défini"}>
-                      {event.lieu || event.location || "Non défini"}
+                    <div className="hidden md:block text-xs truncate" title={event.location || "Non défini"}>
+                      {event.location || "Non défini"}
                     </div>
 
 
@@ -2854,7 +3526,7 @@ const createEvent = async (eventData: { name: string; description: string; date:
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchPendingEvents}
+            onClick={fetchEvents}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -2921,16 +3593,16 @@ const createEvent = async (eventData: { name: string; description: string; date:
                         )}
                       </div>
                       <div className="truncate">
-                        <div className="font-medium truncate" title={event.titre || event.name}>{event.titre || event.name}</div>
+                        <div className="font-medium truncate" title={event.name}>{event.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          Club: {event.nomClub || event.organizer || "Non défini"}
+                          Club: {event.organizer || "Non défini"}
                         </div>
                         <div className="flex md:hidden mt-1 space-x-2">
                           <span className="text-xs bg-gray-100 px-2 py-1 rounded-full">
-                            {new Date(event.dateDebut || event.eventDate).toLocaleDateString()}
+                            {new Date(event.eventDate).toLocaleDateString()}
                           </span>
                           <span className="text-xs bg-gray-100 px-2 py-1 rounded-full truncate">
-                            {event.lieu || event.location || "Non défini"}
+                            {event.location || "Non défini"}
                           </span>
                         </div>
                       </div>
@@ -2967,7 +3639,7 @@ const createEvent = async (eventData: { name: string; description: string; date:
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleViewEventDetails(event.id)}
+                        onClick={() => handleViewClubEventDetails(event.id)}
                         className="text-xs p-2"
                       >
                         <Eye size={14} className="mr-1" /> Voir
@@ -2996,7 +3668,7 @@ const createEvent = async (eventData: { name: string; description: string; date:
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleViewEventDetails(event.id)}
+                        onClick={() => handleViewClubEventDetails(event.id)}
                         className="text-xs p-2"
                       >
                         <Eye size={14} className="mr-1" /> Voir
@@ -3022,14 +3694,15 @@ const createEvent = async (eventData: { name: string; description: string; date:
   {/* Edit Event Dialog */}
   <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
     <DialogContent className="sm:max-w-[600px]">
-      <DialogHeader>
-        <DialogTitle>Modifier l'événement</DialogTitle>
-        <DialogDescription>
-          Apportez des modifications aux détails de l'événement ci-dessous.
-        </DialogDescription>
-      </DialogHeader>
+      <form onSubmit={(e) => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>Modifier l'événement</DialogTitle>
+          <DialogDescription>
+            Apportez des modifications aux détails de l'événement ci-dessous.
+          </DialogDescription>
+        </DialogHeader>
 
-      <div className="grid gap-4 py-4">
+        <div className="grid gap-4 py-4">
         <div className="grid grid-cols-4 items-center gap-4">
           <Label htmlFor="event-name" className="text-right">
             Nom
@@ -3051,7 +3724,7 @@ const createEvent = async (eventData: { name: string; description: string; date:
             type="datetime-local"
             className="col-span-3"
             value={editingEvent?.eventDate ? new Date(editingEvent.eventDate).toISOString().slice(0, 16) : ""}
-            onChange={(e) => setEditingEvent({...editingEvent, eventDate: new Date(e.target.value)})}
+            onChange={(e) => setEditingEvent({...editingEvent, eventDate: e.target.value})}
           />
         </div>
 
@@ -3099,21 +3772,224 @@ const createEvent = async (eventData: { name: string; description: string; date:
             onChange={(e) => setEditingEvent({...editingEvent, description: e.target.value})}
           />
         </div>
+
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label className="text-right">
+            Image
+          </Label>
+          <div className="col-span-3 space-y-2">
+            {editingEvent?.image && (
+              <div className="relative w-full max-w-[200px] h-[120px] rounded-md overflow-hidden border">
+                <img
+                  src={editingEvent.image}
+                  alt={editingEvent.name}
+                  className="w-full h-full object-cover"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-1 right-1 h-6 w-6 rounded-full"
+                  type="button" // Explicitly set type to button to prevent form submission
+                  onClick={async (e) => {
+                    e.preventDefault(); // Prevent any default behavior
+                    e.stopPropagation(); // Stop event propagation
+                    try {
+                      setIsLoading(true);
+                      // Determine if this is a regular event or a club event
+                      const isClubEvent = editingEvent.eventType === "Club";
+                      const eventId = editingEvent.id;
+
+                      if (isClubEvent) {
+                        await eventsClubsService.removeImage(eventId);
+                      } else {
+                        await EventsService.removeImage(eventId);
+                      }
+
+                      // Update the editingEvent with no image
+                      const updatedEditingEvent = {...editingEvent, image: null};
+                      setEditingEvent(updatedEditingEvent);
+
+                      // Don't close the edit dialog, keep it open
+
+                      // Update the event in the appropriate list
+                      if (isClubEvent) {
+                        // Update the club event in the list
+                        const updatedClubEvents = allEventsClub.map(event =>
+                          event.id === eventId ? {...event, image: null} : event
+                        );
+                        setAllEventsClub(updatedClubEvents);
+                        setFilteredEventsClubs(updatedClubEvents.filter(event => {
+                          if (eventSearchQuery.trim() === '') return true;
+                          const lowercaseQuery = eventSearchQuery.toLowerCase();
+                          return event.name.toLowerCase().includes(lowercaseQuery) ||
+                                (event.location && event.location.toLowerCase().includes(lowercaseQuery)) ||
+                                (event.description && event.description.toLowerCase().includes(lowercaseQuery));
+                        }));
+                      } else {
+                        // Update the regular event in the list
+                        const updatedEvents = allEvents.map(event =>
+                          event.id === eventId ? {...event, image: null} : event
+                        );
+                        setAllEvents(updatedEvents);
+                        setFilteredEvents(updatedEvents.filter(event => {
+                          if (eventSearchQuery.trim() === '') return true;
+                          const lowercaseQuery = eventSearchQuery.toLowerCase();
+                          return event.name.toLowerCase().includes(lowercaseQuery) ||
+                                (event.location && event.location.toLowerCase().includes(lowercaseQuery)) ||
+                                (event.description && event.description.toLowerCase().includes(lowercaseQuery));
+                        }));
+                      }
+
+                      toast({
+                        title: "Image supprimée",
+                        description: "L'image de l'événement a été supprimée avec succès.",
+                      });
+
+                      // Don't automatically show event details after removing image
+                    } catch (error) {
+                      console.error("Erreur lors de la suppression de l'image:", error);
+                      toast({
+                        title: "Erreur",
+                        description: "Impossible de supprimer l'image.",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                >
+                  <X size={12} />
+                </Button>
+              </div>
+            )}
+
+            <form onSubmit={(e) => e.preventDefault()}>
+              <Input
+                id="event-image"
+                type="file"
+                accept="image/*"
+                onClick={(e) => {
+                  // Reset the value to ensure onChange fires even if the same file is selected
+                  (e.target as HTMLInputElement).value = '';
+                }}
+                onChange={async (e) => {
+                  e.preventDefault(); // Prevent form submission
+                  e.stopPropagation(); // Stop event propagation
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+
+                  try {
+                    setIsLoading(true);
+                    // Determine if this is a regular event or a club event
+                    const isClubEvent = editingEvent.eventType === "Club";
+                    const eventId = editingEvent.id;
+
+                    let imageUrl: string;
+                    if (isClubEvent) {
+                      imageUrl = await eventsClubsService.uploadImage(eventId, file);
+                    } else {
+                      imageUrl = await EventsService.uploadImage(eventId, file);
+                    }
+
+                    // Update the editingEvent with the new image URL
+                    const updatedEditingEvent = {...editingEvent, image: imageUrl};
+                    setEditingEvent(updatedEditingEvent);
+
+                    // Don't close the edit dialog, keep it open
+
+                    // Update the event in the appropriate list
+                    if (isClubEvent) {
+                      // Update the club event in the list
+                      const updatedClubEvents = allEventsClub.map(event =>
+                        event.id === eventId ? {...event, image: imageUrl} : event
+                      );
+                      setAllEventsClub(updatedClubEvents);
+                      setFilteredEventsClubs(updatedClubEvents.filter(event => {
+                        if (eventSearchQuery.trim() === '') return true;
+                        const lowercaseQuery = eventSearchQuery.toLowerCase();
+                        return event.name.toLowerCase().includes(lowercaseQuery) ||
+                              (event.location && event.location.toLowerCase().includes(lowercaseQuery)) ||
+                              (event.description && event.description.toLowerCase().includes(lowercaseQuery));
+                      }));
+                    } else {
+                      // Update the regular event in the list
+                      const updatedEvents = allEvents.map(event =>
+                        event.id === eventId ? {...event, image: imageUrl} : event
+                      );
+                      setAllEvents(updatedEvents);
+                      setFilteredEvents(updatedEvents.filter(event => {
+                        if (eventSearchQuery.trim() === '') return true;
+                        const lowercaseQuery = eventSearchQuery.toLowerCase();
+                        return event.name.toLowerCase().includes(lowercaseQuery) ||
+                              (event.location && event.location.toLowerCase().includes(lowercaseQuery)) ||
+                              (event.description && event.description.toLowerCase().includes(lowercaseQuery));
+                      }));
+                    }
+
+                    // Show success message
+                    toast({
+                      title: "Image téléchargée",
+                      description: "L'image de l'événement a été mise à jour avec succès.",
+                    });
+
+                    // Don't automatically show event details after upload
+                  } catch (error) {
+                    console.error("Erreur lors du téléchargement de l'image:", error);
+                    toast({
+                      title: "Erreur",
+                      description: "Impossible de télécharger l'image.",
+                      variant: "destructive",
+                    });
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+              />
+            </form>
+            <p className="text-xs text-muted-foreground">
+              Formats acceptés: JPG, PNG, GIF. Taille max: 5MB
+            </p>
+          </div>
+        </div>
       </div>
 
       <DialogFooter>
-        <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+        <Button
+          variant="outline"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsEditDialogOpen(false);
+          }}
+        >
           Annuler
         </Button>
-        <Button onClick={handleSaveEventChanges}>
+        <Button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleSaveEventChanges();
+          }}
+        >
           Enregistrer
         </Button>
       </DialogFooter>
+      </form>
     </DialogContent>
   </Dialog>
 
   {/* Event Details Dialog */}
-  <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+  <Dialog
+    key={selectedEvent ? `event-details-${selectedEvent.id}` : 'no-event'}
+    open={isDetailsDialogOpen}
+    onOpenChange={(open) => {
+      if (!open) {
+        setIsDetailsDialogOpen(false);
+      }
+    }}
+  >
     <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto w-[95vw]">
       {selectedEvent && (
         <>
@@ -3180,7 +4056,7 @@ const createEvent = async (eventData: { name: string; description: string; date:
 
               <div>
                 <h4 className="text-sm font-medium mb-1 text-muted-foreground">Organisateur</h4>
-                <p>{selectedEvent.organizer || selectedEvent.requestedBy || "Non défini"}</p>
+                <p>{selectedEvent.organizer || "Non défini"}</p>
               </div>
 
               <div>
@@ -3202,15 +4078,244 @@ const createEvent = async (eventData: { name: string; description: string; date:
             </div>
           </div>
 
-          {selectedEvent.participants > 0 && (
-            <div className="py-2">
-              <h4 className="text-sm font-medium mb-2 text-muted-foreground">Liste des participants</h4>
-              <div className="border rounded-md p-3 bg-muted/30 max-h-40 overflow-y-auto">
-                {/* Ici on simulerait une liste de participants, mais pour l'exemple on met un placeholder */}
-                <p className="text-muted-foreground text-sm">Liste des participants non disponible.</p>
-              </div>
+          <div className="py-2">
+            <h4 className="text-sm font-medium mb-2 text-muted-foreground flex items-center justify-between">
+              <span>Liste des participants ({selectedEvent.participantCount || 0})</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedEvent.eventType === "Club") {
+                    fetchClubEventParticipants(selectedEvent.id);
+                  } else {
+                    fetchEventParticipants(selectedEvent.id, "Standard");
+                  }
+                }}
+              >
+                <RefreshCw size={14} className="mr-1" /> Actualiser
+              </Button>
+            </h4>
+            <div className="border rounded-md p-3 bg-muted/30 max-h-60 overflow-y-auto">
+              {isLoadingParticipants ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  <span>Chargement des participants...</span>
+                </div>
+              ) : eventParticipants.length === 0 ? (
+                <p className="text-muted-foreground text-sm text-center py-4">Aucun participant pour cet événement.</p>
+              ) : (
+                <div className="space-y-2">
+                  {eventParticipants.map((participant) => (
+                    <div key={participant.id} className="flex items-center justify-between p-2 bg-background rounded-md">
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center mr-2">
+                          {participant.user?.image ? (
+                            <img
+                              src={participant.user.image}
+                              alt={`${participant.user.firstName} ${participant.user.lastName}`}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <User size={14} />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium text-sm">
+                            {participant.firstName || ''} {participant.lastName || ''}
+                            {!participant.firstName && !participant.lastName && `Utilisateur #${participant.userId}`}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {participant.email || `ID: ${participant.userId}`}
+                          </div>
+                          {participant.user?.departement && (
+                            <div className="text-xs text-muted-foreground">
+                              Département: {participant.user.departement}
+                            </div>
+                          )}
+                          <div className="text-xs text-muted-foreground">
+                            Inscrit le: {new Date(participant.dateInscription).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center">
+                        {selectedEvent.eventType === "Club" ? (
+                          // For club events, just display the status without dropdown
+                          (() => {
+                            const statusInfo = getParticipantStatusDisplay(participant.status);
+                            return (
+                              <span className={`text-xs px-2 py-1 rounded-full ${statusInfo.bgColor} ${statusInfo.textColor}`}>
+                                {statusInfo.label}
+                              </span>
+                            );
+                          })()
+                        ) : (
+                          // For regular events, keep the dropdown functionality
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 px-2 gap-1">
+                                {(() => {
+                                  const statusInfo = getParticipantStatusDisplay(participant.status);
+                                  return (
+                                    <span className={`text-xs px-2 py-1 rounded-full ${statusInfo.bgColor} ${statusInfo.textColor}`}>
+                                      {statusInfo.label}
+                                    </span>
+                                  );
+                                })()}
+                                <ChevronDown size={14} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-[160px]">
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => {
+                                  console.log(`Direct status update: userId=${participant.userId}, eventId=${selectedEvent.id}, status=CONFIRMED`);
+                                  participantService.updateParticipantStatus(
+                                    Number(participant.userId),
+                                    Number(selectedEvent.id),
+                                    'CONFIRMED'
+                                  ).then(() => {
+                                    // Update the UI
+                                    setEventParticipants(prev =>
+                                      prev.map(p =>
+                                        p.id === participant.id
+                                          ? { ...p, status: 'CONFIRMED' }
+                                          : p
+                                      )
+                                    );
+                                    toast({
+                                      title: "Statut mis à jour",
+                                      description: "Le statut du participant a été changé à 'Confirmé'",
+                                    });
+                                  }).catch(error => {
+                                    console.error("Error updating status:", error);
+                                    toast({
+                                      title: "Erreur",
+                                      description: "Impossible de mettre à jour le statut du participant.",
+                                      variant: "destructive",
+                                    });
+                                  });
+                                }}
+                              >
+                                <CheckCircle size={14} className="text-green-600" />
+                                <span>Confirmer</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => {
+                                  console.log(`Direct status update: userId=${participant.userId}, eventId=${selectedEvent.id}, status=PENDING`);
+                                  participantService.updateParticipantStatus(
+                                    Number(participant.userId),
+                                    Number(selectedEvent.id),
+                                    'PENDING'
+                                  ).then(() => {
+                                    // Update the UI
+                                    setEventParticipants(prev =>
+                                      prev.map(p =>
+                                        p.id === participant.id
+                                          ? { ...p, status: 'PENDING' }
+                                          : p
+                                      )
+                                    );
+                                    toast({
+                                      title: "Statut mis à jour",
+                                      description: "Le statut du participant a été changé à 'En attente'",
+                                    });
+                                  }).catch(error => {
+                                    console.error("Error updating status:", error);
+                                    toast({
+                                      title: "Erreur",
+                                      description: "Impossible de mettre à jour le statut du participant.",
+                                      variant: "destructive",
+                                    });
+                                  });
+                                }}
+                              >
+                                <Clock size={14} className="text-yellow-600" />
+                                <span>En attente</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="gap-2"
+                                onClick={() => {
+                                  console.log(`Direct status update: userId=${participant.userId}, eventId=${selectedEvent.id}, status=CANCELLED`);
+                                  participantService.updateParticipantStatus(
+                                    Number(participant.userId),
+                                    Number(selectedEvent.id),
+                                    'CANCELLED'
+                                  ).then(() => {
+                                    // Update the UI
+                                    setEventParticipants(prev =>
+                                      prev.map(p =>
+                                        p.id === participant.id
+                                          ? { ...p, status: 'CANCELLED' }
+                                          : p
+                                      )
+                                    );
+                                    toast({
+                                      title: "Statut mis à jour",
+                                      description: "Le statut du participant a été changé à 'Annulé'",
+                                    });
+                                  }).catch(error => {
+                                    console.error("Error updating status:", error);
+                                    toast({
+                                      title: "Erreur",
+                                      description: "Impossible de mettre à jour le statut du participant.",
+                                      variant: "destructive",
+                                    });
+                                  });
+                                }}
+                              >
+                                <XCircle size={14} className="text-red-600" />
+                                <span>Annuler</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="gap-2 text-red-600"
+                                onClick={() => {
+                                  console.log(`Direct participant removal: userId=${participant.userId}, eventId=${selectedEvent.id}`);
+                                  participantService.leaveEvent(
+                                    Number(participant.userId),
+                                    Number(selectedEvent.id)
+                                  ).then(() => {
+                                    // Update the UI
+                                    setEventParticipants(prev => prev.filter(p => p.id !== participant.id));
+
+                                    // Update the participant count in the selected event
+                                    if (selectedEvent) {
+                                      const newCount = Math.max((selectedEvent.participantCount || 0) - 1, 0);
+                                      setSelectedEvent({
+                                        ...selectedEvent,
+                                        participantCount: newCount,
+                                        participants: newCount
+                                      });
+                                    }
+
+                                    toast({
+                                      title: "Participant retiré",
+                                      description: "Le participant a été retiré de l'événement avec succès.",
+                                    });
+                                  }).catch(error => {
+                                    console.error("Error removing participant:", error);
+                                    toast({
+                                      title: "Erreur",
+                                      description: "Impossible de retirer le participant.",
+                                      variant: "destructive",
+                                    });
+                                  });
+                                }}
+                              >
+                                <UserX size={14} />
+                                <span>Retirer</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between">
             <div className="flex flex-col sm:flex-row gap-2">
@@ -3276,8 +4381,8 @@ const createEvent = async (eventData: { name: string; description: string; date:
               console.log("Deleting event:", eventToDeleteId);
 
               // Check if this is a regular event or a club event
-              const isRegularEvent = allEvents.some(e => e.id === eventToDeleteId);
-              const isClubEvent = allEventsClub.some(e => e.id === eventToDeleteId);
+              const isRegularEvent = allEvents.some(e => Number(e.id) === Number(eventToDeleteId));
+              const isClubEvent = allEventsClub.some(e => Number(e.id) === Number(eventToDeleteId));
 
               console.log("Is regular event:", isRegularEvent);
               console.log("Is club event:", isClubEvent);
@@ -3291,14 +4396,14 @@ const createEvent = async (eventData: { name: string; description: string; date:
                   await eventsClubsService.deleteEvent(eventToDeleteId, adminId);
 
                   // Update club events state
-                  setAllEventsClub(allEventsClub.filter(event => event.id !== eventToDeleteId));
-                  setFilteredEventsClubs(filteredEventsClubs.filter(event => event.id !== eventToDeleteId));
+                  setAllEventsClub(allEventsClub.filter(event => Number(event.id) !== Number(eventToDeleteId)));
+                  setFilteredEventsClubs(filteredEventsClubs.filter(event => Number(event.id) !== Number(eventToDeleteId)));
                 } else {
                   await EventsService.deleteEvent(eventToDeleteId, adminId);
 
                   // Update regular events state
-                  setAllEvents(allEvents.filter(event => event.id !== eventToDeleteId));
-                  setFilteredEvents(filteredEvents.filter(event => event.id !== eventToDeleteId));
+                  setAllEvents(allEvents.filter(event => Number(event.id) !== Number(eventToDeleteId)));
+                  setFilteredEvents(filteredEvents.filter(event => Number(event.id) !== Number(eventToDeleteId)));
                 }
 
                 toast({
@@ -3406,6 +4511,59 @@ const createEvent = async (eventData: { name: string; description: string; date:
             onChange={(e) => setNewEventData({...newEventData, description: e.target.value})}
           />
         </div>
+
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label className="text-right">
+            Image
+          </Label>
+          <div className="col-span-3 space-y-2">
+            {newEventData.image && (
+              <div className="relative w-full max-w-[200px] h-[120px] rounded-md overflow-hidden border">
+                <img
+                  src={newEventData.image}
+                  alt="Aperçu"
+                  className="w-full h-full object-cover"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-1 right-1 h-6 w-6 rounded-full"
+                  onClick={() => {
+                    setNewEventData({...newEventData, image: null, imageFile: null});
+                  }}
+                >
+                  <X size={12} />
+                </Button>
+              </div>
+            )}
+
+            <Input
+              id="new-event-image"
+              type="file"
+              accept="image/*"
+              onClick={(e) => {
+                // Reset the value to ensure onChange fires even if the same file is selected
+                (e.target as HTMLInputElement).value = '';
+              }}
+              onChange={(e) => {
+                e.preventDefault(); // Prevent form submission
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                // Create a preview URL
+                const previewUrl = URL.createObjectURL(file);
+                setNewEventData({
+                  ...newEventData,
+                  image: previewUrl,
+                  imageFile: file
+                });
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Formats acceptés: JPG, PNG, GIF. Taille max: 5MB
+            </p>
+          </div>
+        </div>
       </div>
 
       <DialogFooter>
@@ -3500,9 +4658,9 @@ const createEvent = async (eventData: { name: string; description: string; date:
                           {/* Club name and image - always visible */}
                           <div className="w-full md:col-span-2 flex items-center space-x-2">
                             <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
-                              {club.profilePhoto ? (
+                              {club.image || club.profilePhoto ? (
                                 <img
-                                  src={club.profilePhoto}
+                                  src={club.image || club.profilePhoto}
                                   alt={club.nom}
                                   className="w-full h-full object-cover"
                                 />
@@ -3620,9 +4778,9 @@ const createEvent = async (eventData: { name: string; description: string; date:
                         <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3 mb-3">
                           <div className="flex items-center">
                             <div className="w-10 h-10 bg-primary/20 rounded-full flex-shrink-0 mr-3 flex items-center justify-center overflow-hidden">
-                              {club.profilePhoto ? (
+                              {club.image || club.profilePhoto ? (
                                 <img
-                                  src={club.profilePhoto}
+                                  src={club.image || club.profilePhoto}
                                   alt={club.nom}
                                   className="w-full h-full object-cover"
                                 />
@@ -4230,7 +5388,7 @@ const createEvent = async (eventData: { name: string; description: string; date:
 
     {/* Club Details Dialog */}
     <Dialog open={isClubDetailDialogOpen} onOpenChange={setIsClubDetailDialogOpen}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Détails du club</DialogTitle>
           <DialogDescription>
@@ -4239,181 +5397,226 @@ const createEvent = async (eventData: { name: string; description: string; date:
         </DialogHeader>
 
         {selectedClub && (
-          <div className="py-4">
-            <div className="relative w-full h-48 rounded-lg bg-muted mb-16 overflow-hidden">
-              {selectedClub.coverPhoto ? (
-                <img
-                  src={selectedClub.coverPhoto}
-                  alt={selectedClub.nom}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-primary/10 flex items-center justify-center">
-                  <Activity size={48} className="text-primary/50" />
-                </div>
-              )}
-              <div className="absolute -bottom-12 left-8">
-                <div className="w-24 h-24 rounded-full bg-primary/20 border-4 border-white flex items-center justify-center overflow-hidden">
-                  {selectedClub.profilePhoto ? (
-                    <img
-                      src={selectedClub.profilePhoto}
-                      alt={selectedClub.nom}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Activity size={24} className="text-primary" />
-                  )}
-                </div>
+          <div className="py-2">
+            {/* Club header with large image */}
+            <div className="mb-6 text-center">
+              {/* Large club image */}
+              <div className="mx-auto w-32 h-32 rounded-full overflow-hidden mb-4 border border-border shadow-sm">
+                {selectedClub.image || selectedClub.profilePhoto ? (
+                  <img
+                    src={selectedClub.image || selectedClub.profilePhoto}
+                    alt={selectedClub.nom}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-muted">
+                    <Activity size={40} className="text-primary" />
+                  </div>
+                )}
+              </div>
+
+              {/* Club name */}
+              <h2 className="text-2xl font-semibold mb-2">{selectedClub.nom}</h2>
+
+              {/* Creation date */}
+              <div className="text-sm text-muted-foreground">
+                Créé le {new Date(selectedClub.dateCreation || new Date()).toLocaleDateString()}
               </div>
             </div>
 
-            <div className="mt-12">
-              <h2 className="text-2xl font-semibold">{selectedClub.nom}</h2>
-              <div className="flex flex-wrap items-center mt-1 mb-4 gap-2">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                  selectedClub.etat === 'ACCEPTER' ? 'bg-green-100 text-green-800' :
-                  selectedClub.etat === 'EN_ATTENTE' ? 'bg-yellow-100 text-yellow-800' :
-                  selectedClub.etat === 'REFUSER' ? 'bg-red-100 text-red-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {selectedClub.etat === 'ACCEPTER' ? 'Accepté' :
-                   selectedClub.etat === 'EN_ATTENTE' ? 'En attente' :
-                   selectedClub.etat === 'REFUSER' ? 'Refusé' :
-                   selectedClub.etat || 'Inconnu'}
-                </span>
+            {/* Description */}
+            <div className="mb-4">
+              <h3 className="text-lg font-medium mb-2">Description</h3>
+              <p className="text-muted-foreground">
+                {selectedClub.description}
+              </p>
+            </div>
 
-                {selectedClub.categoryId && (
-                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                    {getCategoryName(selectedClub.categoryId)}
-                  </span>
-                )}
+            {/* Info and Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="p-4 border border-border rounded-lg">
+                <h4 className="font-medium mb-3">Informations</h4>
+                <div className="space-y-4 text-sm">
+                  <div className="flex flex-col">
+                    <span className="text-muted-foreground mb-2 text-sm">Statut:</span>
+                    <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium ${
+                      selectedClub.etat === 'ACCEPTER' ? 'bg-green-100 text-green-800' :
+                      selectedClub.etat === 'EN_ATTENTE' ? 'bg-yellow-100 text-yellow-800' :
+                      selectedClub.etat === 'REFUSER' ? 'bg-red-100 text-red-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {selectedClub.etat === 'ACCEPTER' ? 'Accepté' :
+                       selectedClub.etat === 'EN_ATTENTE' ? 'En attente' :
+                       selectedClub.etat === 'REFUSER' ? 'Refusé' :
+                       selectedClub.etat || 'Inconnu'}
+                    </span>
+                  </div>
 
-                <span className="text-sm text-muted-foreground ml-auto">
-                  Créé le {new Date(selectedClub.dateCreation || new Date()).toLocaleDateString()}
-                </span>
-              </div>
-
-              <div className="mb-6">
-                <h3 className="text-lg font-medium mb-2">Description</h3>
-                <p className="text-muted-foreground">
-                  {selectedClub.description}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="p-4 border border-border rounded-lg">
-                  <h4 className="font-medium mb-2">Informations</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Membres:</span>
-                      <span className="font-medium">{selectedClub.membres || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Catégorie:</span>
-                      <span className="font-medium">
-                        {selectedClub.categoryId ? (
-                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                            {getCategoryName(selectedClub.categoryId)}
-                          </span>
-                        ) : (
-                          'Non définie'
-                        )}
+                  <div className="flex flex-col">
+                    <span className="text-muted-foreground mb-2 text-sm">Catégorie:</span>
+                    {selectedClub.categoryId ? (
+                      <span className="px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm inline-block">
+                        {getCategoryName(selectedClub.categoryId)}
                       </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Statut:</span>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        selectedClub.etat === 'ACCEPTER' ? 'bg-green-100 text-green-800' :
-                        selectedClub.etat === 'EN_ATTENTE' ? 'bg-yellow-100 text-yellow-800' :
-                        selectedClub.etat === 'REFUSER' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {selectedClub.etat === 'ACCEPTER' ? 'Accepté' :
-                         selectedClub.etat === 'EN_ATTENTE' ? 'En attente' :
-                         selectedClub.etat === 'REFUSER' ? 'Refusé' :
-                         selectedClub.etat || 'Inconnu'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">ID:</span>
-                      <span className="font-medium">{selectedClub.id}</span>
-                    </div>
+                    ) : (
+                      <span className="font-medium">Non définie</span>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Membres:</span>
+                    <span className="font-medium">{selectedClub.membres || 0}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">ID:</span>
+                    <span className="font-medium">{selectedClub.id}</span>
                   </div>
                 </div>
+              </div>
 
-                <div className="p-4 border border-border rounded-lg">
-                  <h4 className="font-medium mb-3">Actions</h4>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setIsClubDetailDialogOpen(false);
-                        handleEditClub(selectedClub.id);
-                      }}
-                      className="flex items-center"
-                    >
-                      <Edit size={14} className="mr-1" /> Modifier
-                    </Button>
+              <div className="p-3 border border-border rounded-lg">
+                <h4 className="font-medium mb-2">Actions</h4>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsClubDetailDialogOpen(false);
+                      handleEditClub(selectedClub.id);
+                    }}
+                    className="flex items-center"
+                  >
+                    <Edit size={14} className="mr-1" /> Modifier
+                  </Button>
 
-                    {selectedClub.etat === 'EN_ATTENTE' ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            handleUpdateClubStatus(selectedClub.id, 'ACCEPTER');
-                          }}
-                          className="flex items-center text-green-600"
-                        >
-                          <CheckCircle size={14} className="mr-1" /> Accepter
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            handleUpdateClubStatus(selectedClub.id, 'REFUSER');
-                          }}
-                          className="flex items-center text-red-600"
-                        >
-                          <XCircle size={14} className="mr-1" /> Refuser
-                        </Button>
-                      </>
-                    ) : (
+                  {selectedClub.etat === 'EN_ATTENTE' ? (
+                    <>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          const newStatus = selectedClub.etat === 'ACCEPTER' ? 'REFUSER' : 'ACCEPTER';
-                          handleUpdateClubStatus(selectedClub.id, newStatus);
+                          handleUpdateClubStatus(selectedClub.id, 'ACCEPTER');
                         }}
-                        className={`flex items-center ${selectedClub.etat === 'ACCEPTER' ? 'text-yellow-600' : 'text-green-600'}`}
+                        className="flex items-center text-green-600"
                       >
-                        {selectedClub.etat === 'ACCEPTER' ? (
-                          <>
-                            <XCircle size={14} className="mr-1" /> Désactiver
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle size={14} className="mr-1" /> Activer
-                          </>
-                        )}
+                        <CheckCircle size={14} className="mr-1" /> Accepter
                       </Button>
-                    )}
-
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          handleUpdateClubStatus(selectedClub.id, 'REFUSER');
+                        }}
+                        className="flex items-center text-red-600"
+                      >
+                        <XCircle size={14} className="mr-1" /> Refuser
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        handleDeleteClubConfirmation(selectedClub.id);
+                        const newStatus = selectedClub.etat === 'ACCEPTER' ? 'REFUSER' : 'ACCEPTER';
+                        handleUpdateClubStatus(selectedClub.id, newStatus);
                       }}
-                      className="flex items-center text-red-600 hover:text-red-700"
+                      className={`flex items-center ${selectedClub.etat === 'ACCEPTER' ? 'text-yellow-600' : 'text-green-600'}`}
                     >
-                      <Trash size={14} className="mr-1" /> Supprimer
+                      {selectedClub.etat === 'ACCEPTER' ? (
+                        <>
+                          <XCircle size={14} className="mr-1" /> Désactiver
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle size={14} className="mr-1" /> Activer
+                        </>
+                      )}
                     </Button>
-                  </div>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      handleDeleteClubConfirmation(selectedClub.id);
+                    }}
+                    className="flex items-center text-red-600 hover:text-red-700"
+                  >
+                    <Trash size={14} className="mr-1" /> Supprimer
+                  </Button>
                 </div>
               </div>
+            </div>
+
+            {/* Club Members Section - Responsive Table */}
+            <div className="mt-4">
+              <h3 className="text-lg font-medium mb-3">Membres du club</h3>
+
+              {isLoadingClubMembers ? (
+                <div className="flex justify-center items-center py-6">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : clubMembers.length > 0 ? (
+                <div className="border rounded-md overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="py-2 px-3 text-left text-sm font-medium">Utilisateur</th>
+                        <th className="py-2 px-3 text-left text-sm font-medium hidden md:table-cell">Email</th>
+                        <th className="py-2 px-3 text-left text-sm font-medium">Rôle</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {clubMembers.map((member) => (
+                        <tr key={member.id} className="hover:bg-muted/50">
+                          <td className="py-2 px-3">
+                            <div className="flex items-center">
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center mr-2 overflow-hidden">
+                                {member.user?.image ? (
+                                  <img
+                                    src={member.user.image}
+                                    alt={`${member.user.firstName || ''} ${member.user.lastName || ''}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-xs font-medium">
+                                    {member.user?.firstName?.charAt(0) || member.firstName?.charAt(0) || '?'}
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {member.user?.firstName || member.firstName || 'Utilisateur'} {member.user?.lastName || member.lastName || ''}
+                                </p>
+                                <p className="text-xs text-muted-foreground md:hidden">
+                                  {member.user?.email || member.email || 'Non disponible'}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2 px-3 text-sm hidden md:table-cell">
+                            {member.user?.email || member.email || 'Non disponible'}
+                          </td>
+                          <td className="py-2 px-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              member.role === RoleMembre.ADMIN_CLUB
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {member.role === RoleMembre.ADMIN_CLUB ? 'Admin Club' : 'Membre'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-6 border rounded-md bg-muted/20">
+                  <p className="text-muted-foreground">Aucun membre trouvé pour ce club</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -4542,6 +5745,58 @@ const createEvent = async (eventData: { name: string; description: string; date:
                                  editClubData.etat === 'EN_ATTENTE' ? 'En attente' :
                                  editClubData.etat === 'REFUSER' ? 'Refusé' :
                                  editClubData.etat || 'Non défini'}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Image du club</label>
+                <div className="mt-2 space-y-3">
+                  {/* Show current image if available */}
+                  {editClubData.image && (
+                    <div className="relative w-full max-w-[200px] h-[120px] rounded-md overflow-hidden border">
+                      <img
+                        src={editClubData.image}
+                        alt="Image du club"
+                        className="w-full h-full object-cover"
+                      />
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-1 right-1 h-6 w-6 rounded-full"
+                        onClick={() => {
+                          setEditClubData({...editClubData, image: null, imageFile: null});
+                        }}
+                      >
+                        <X size={12} />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Image upload input */}
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onClick={(e) => {
+                      // Reset the value to ensure onChange fires even if the same file is selected
+                      (e.target as HTMLInputElement).value = '';
+                    }}
+                    onChange={(e) => {
+                      e.preventDefault(); // Prevent form submission
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+
+                      // Create a preview URL and store the file
+                      const previewUrl = URL.createObjectURL(file);
+                      setEditClubData({
+                        ...editClubData,
+                        image: previewUrl,
+                        imageFile: file
+                      });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Formats acceptés: JPG, PNG, GIF. Taille max: 5MB
+                  </p>
                 </div>
               </div>
             </div>

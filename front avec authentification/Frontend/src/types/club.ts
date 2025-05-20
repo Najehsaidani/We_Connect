@@ -9,7 +9,7 @@ export enum EtatClub {
 export interface CategoryDto {
   id: number;
   nom: string; // Le nom de la catégorie (backend uses 'nom' instead of 'name')
-  clubs?: any[]; // Optional clubs array from backend
+  clubs?: ClubDto[]; // Optional clubs array from backend
 }
 
 // Type pour un résumé de catégorie (utilisé dans ClubDto)
@@ -25,12 +25,15 @@ export interface ClubDto {
   description: string; // Description du club
   categoryId?: number; // ID de la catégorie à laquelle appartient le club
   category?: CategorySummaryDto; // Objet catégorie complet
-  coverPhoto?: string; // URL de la photo de couverture du club
-  profilePhoto?: string; // URL de la photo de profil du club
-  banner?: string; // Nouvelle propriété pour la bannière
+  image?: string; // URL de l'image principale du club (remplace profilePhoto)
+  banner?: string; // URL de la bannière du club
   dateCreation?: string; // Date de création du club (format ISO 8601)
   createurId?: number; // ID du créateur du club
   etat?: EtatClub | string; // État du club (EN_ATTENTE, ACCEPTER, REFUSER)
-  membres?: number; // Pour la compatibilité avec l'ancien code
-  members?: number; // Nouvelle propriété utilisée par le backend
+  membres?: number; // Nombre de membres du club
+
+  // Propriétés pour la compatibilité avec l'ancien code
+  profilePhoto?: string; // Alias pour image
+  coverPhoto?: string; // Alias pour banner
+  members?: number; // Alias pour membres
 }

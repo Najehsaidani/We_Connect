@@ -14,6 +14,18 @@ export interface EventClub {
   nbParticipants?: number;
   createurId: number;
   clubId?: number;
+  participantsClub?: { id: number; userId: number; dateInscription: string; status: string }[]; // List of ParticipantClub objects
+}
+
+// Define the Participant interface
+export interface Participant {
+  id: number;
+  userId: number;
+  eventId: number;
+  dateInscription: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
 }
 
 // Export the service object
@@ -108,7 +120,7 @@ export const eventsClubsService = {
   },
 
   // Get event participants
-  getEventParticipants: async (id: number): Promise<any[]> => {
+  getEventParticipants: async (id: number): Promise<Participant[]> => {
     try {
       console.log(`Fetching participants for club event ${id}`);
       const res = await apiClient.get(`/eventsClubs/${id}/participants`);
@@ -117,6 +129,39 @@ export const eventsClubsService = {
     } catch (error) {
       console.error('Error fetching club event participants:', error);
       return [];
+    }
+  },
+
+  // Upload an image for a club event
+  uploadImage: async (id: number, file: File): Promise<string> => {
+    try {
+      console.log(`Uploading image for club event ${id}`);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await apiClient.post(`/eventsClubs/${id}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      console.log('Club event image upload response:', res.data);
+      return res.data;
+    } catch (error) {
+      console.error('Error uploading club event image:', error);
+      throw error;
+    }
+  },
+
+  // Remove an image from a club event
+  removeImage: async (id: number): Promise<boolean> => {
+    try {
+      console.log(`Removing image from club event ${id}`);
+      const res = await apiClient.delete(`/eventsClubs/${id}/image`);
+      console.log('Club event image removal response:', res.data);
+      return res.data;
+    } catch (error) {
+      console.error('Error removing club event image:', error);
+      throw error;
     }
   }
 };

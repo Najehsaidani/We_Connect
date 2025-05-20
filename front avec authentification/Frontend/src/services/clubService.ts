@@ -60,7 +60,7 @@ export const clubService = {
     }
   },
 
-  joinClub: async (clubId: number, userId: string) => {
+  joinClub: async (clubId: number, userId: number) => {
     try {
       console.log(`User ${userId} joining club ${clubId}`);
       await apiClient.post(`/clubs/${clubId}/inscription/${userId}`);
@@ -71,13 +71,25 @@ export const clubService = {
     }
   },
 
-  leaveClub: async (clubId: number, userId: string) => {
+  leaveClub: async (clubId: number, userId: number) => {
     try {
       console.log(`User ${userId} leaving club ${clubId}`);
       await apiClient.delete(`/clubs/${clubId}/inscription/${userId}`);
       console.log(`User ${userId} left club ${clubId} successfully`);
     } catch (error) {
       console.error(`Error leaving club ${clubId}:`, error);
+      throw error;
+    }
+  },
+
+  // Remove a member from a club (admin only)
+  removeMember: async (clubId: number, membreId: number, adminId: number) => {
+    try {
+      console.log(`Admin ${adminId} removing member ${membreId} from club ${clubId}`);
+      await apiClient.delete(`/clubs/${clubId}/membres/${membreId}?adminId=${adminId}`);
+      console.log(`Member ${membreId} removed from club ${clubId} successfully`);
+    } catch (error) {
+      console.error(`Error removing member ${membreId} from club ${clubId}:`, error);
       throw error;
     }
   },
@@ -106,6 +118,19 @@ export const clubService = {
       return response.data;
     } catch (error) {
       console.error("Error fetching pending clubs:", error);
+      throw error;
+    }
+  },
+
+  // Update the member count for a club
+  updateClubMemberCount: async (clubId: number, memberCount: number): Promise<ClubDto> => {
+    try {
+      console.log(`Updating member count for club ${clubId} to ${memberCount}`);
+      // This is a client-side update only, not sending to backend
+      // We'll update the club object when we fetch it next time
+      return { id: clubId, membres: memberCount } as ClubDto;
+    } catch (error) {
+      console.error(`Error updating member count for club ${clubId}:`, error);
       throw error;
     }
   },
@@ -158,6 +183,40 @@ export const clubService = {
       return response.data;
     } catch (error) {
       console.error(`Error updating club ${id} status:`, error);
+      throw error;
+    }
+  },
+
+  // Upload an image for a club
+  uploadImage: async (id: number, file: File): Promise<string> => {
+    try {
+      console.log(`Uploading image for club ${id}`);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await apiClient.post(`/clubs/${id}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      console.log(`Image uploaded for club ${id}:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error uploading image for club ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Remove the image of a club
+  removeImage: async (id: number): Promise<boolean> => {
+    try {
+      console.log(`Removing image for club ${id}`);
+      const response = await apiClient.delete(`/clubs/${id}/image`);
+      console.log(`Image removed for club ${id}:`, response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error removing image for club ${id}:`, error);
       throw error;
     }
   }

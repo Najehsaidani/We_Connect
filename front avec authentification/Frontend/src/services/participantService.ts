@@ -1,5 +1,6 @@
 // src/services/participantService.ts
 import apiClient from './api';
+import { Event } from './eventService';
 
 /**
  * Interface for participant data
@@ -7,9 +8,22 @@ import apiClient from './api';
 export interface Participant {
   id?: number;
   userId: number;
-  event: any; // Using any for now since the event structure can vary
+  event: Event;
+  eventId?: number; // For API requests
   dateInscription: string;
-  status: string;
+  status: 'CONFIRMED' | 'PENDING' | 'CANCELLED'; // Matches ParticipantStatus enum in backend
+  // Additional fields for UI display
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  user?: {
+    id: number;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    image?: string;
+    departement?: string;
+  };
 }
 
 /**
@@ -41,9 +55,17 @@ class ParticipantService {
         return {
           id: Math.floor(Math.random() * 1000),
           userId: userId,
-          event: { id: eventId },
+          event: {
+            id: eventId,
+            titre: 'Mock Event',
+            description: 'This is a mock event for development',
+            lieu: 'Mock Location',
+            dateDebut: new Date().toISOString(),
+            dateFin: new Date(Date.now() + 86400000).toISOString(),
+            createurId: 1
+          },
           dateInscription: new Date().toISOString(),
-          status: 'CONFIRMED'
+          status: 'CONFIRMED' as const
         };
       }
       throw error;
@@ -59,15 +81,28 @@ class ParticipantService {
   async leaveEvent(userId: number, eventId: number): Promise<void> {
     try {
       console.log(`Leaving event: userId=${userId}, eventId=${eventId}`);
+
+      // Use the correct endpoint from your backend controller
       await apiClient.delete('/participants/leave', {
         params: {
           userId,
           eventId
         }
       });
-      console.log('Successfully left event');
+
+      console.log(`Successfully removed user ${userId} from event ${eventId}`);
     } catch (error) {
       console.error('Error leaving event:', error);
+
+      // Log more detailed error information
+      if (error.response) {
+        console.error('Error response:', error.response.status, error.response.data);
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+      } else {
+        console.error('Error setting up request:', error.message);
+      }
+
       // In development mode, just log and continue
       if (process.env.NODE_ENV === 'development') {
         console.log('Development mode: simulating successful leave event');
@@ -105,33 +140,24 @@ class ParticipantService {
   async getEventParticipants(eventId: number): Promise<Participant[]> {
     try {
       console.log(`Fetching participants for event ${eventId}`);
-      // This endpoint might not exist in your backend
-      try {
-        const response = await apiClient.get(`/participants/event/${eventId}`);
-        console.log(`Found ${response.data.length} participants for event ${eventId}`);
-        return response.data;
-      } catch (innerError) {
-        console.error('Error fetching event participants, trying alternative endpoint:', innerError);
-        // Try an alternative endpoint
-        const response = await apiClient.get(`/events/${eventId}/participants`);
-        console.log(`Found ${response.data.length} participants for event ${eventId} (alternative endpoint)`);
-        return response.data;
-      }
+      // Based on the ParticipantClubController, we assume a similar structure for regular participants
+      const response = await apiClient.get(`/participants/event/${eventId}`);
+      console.log(`Found ${response.data.length} participants for event ${eventId}`);
+      return response.data;
     } catch (error) {
       console.error('Error fetching event participants:', error);
-      // In development mode, return mock data
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Development mode: returning mock participants');
-        return [
-          {
-            id: 1,
-            userId: 1,
-            event: { id: eventId },
-            dateInscription: new Date().toISOString(),
-            status: 'CONFIRMED'
-          }
-        ];
+
+      // Log the specific error for debugging
+      if (error.response) {
+        console.error('Error response:', error.response.status, error.response.data);
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+      } else {
+        console.error('Error setting up request:', error.message);
       }
+
+      // Return an empty array if there's an error
+      console.log('No participants found for event ID:', eventId);
       return [];
     }
   }
@@ -141,7 +167,7 @@ class ParticipantService {
    * @param userId - The ID of the user
    * @returns Promise with array of events
    */
-  async getUserEvents(userId: number): Promise<any[]> {
+  async getUserEvents(userId: number): Promise<Event[]> {
     try {
       console.log(`Fetching events for user ${userId}`);
       // This endpoint might not exist in your backend
@@ -164,6 +190,64 @@ class ParticipantService {
         return [];
       }
       return [];
+    }
+  }
+
+  /**
+   * Update a participant's status
+   * @param userId - The ID of the user
+   * @param eventId - The ID of the event
+   * @param status - The new status ('CONFIRMED', 'PENDING', or 'CANCELLED')
+   * @returns Promise with the updated participant data
+   */
+  async updateParticipantStatus(userId: number, eventId: number, status: 'CONFIRMED' | 'PENDING' | 'CANCELLED'): Promise<Participant> {
+    try {
+      console.log(`Directly updating participant status: userId=${userId}, eventId=${eventId}, status=${status}`);
+
+      // Use the correct PATCH endpoint from your backend controller
+      // Make sure to convert IDs to numbers
+      const updateResponse = await apiClient.put('/participants/status', null, {
+        params: {
+          userId: Number(userId),
+          eventId: Number(eventId),
+          status: status
+        }
+      });
+
+      console.log('Update participant status response:', updateResponse.data);
+      return updateResponse.data;
+    } catch (error) {
+      console.error('Error updating participant status:', error);
+
+      // Log more detailed error information
+      if (error.response) {
+        console.error('Error response:', error.response.status, error.response.data);
+      } else if (error.request) {
+        console.error('No response received:', error.request);
+      } else {
+        console.error('Error setting up request:', error.message);
+      }
+
+      // In development mode, return a mock updated participant
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Development mode: returning mock updated participant data');
+        return {
+          id: Math.floor(Math.random() * 1000),
+          userId: userId,
+          event: {
+            id: eventId,
+            titre: 'Mock Event',
+            description: 'This is a mock event for development',
+            lieu: 'Mock Location',
+            dateDebut: new Date().toISOString(),
+            dateFin: new Date(Date.now() + 86400000).toISOString(),
+            createurId: 1
+          },
+          dateInscription: new Date().toISOString(),
+          status: status
+        };
+      }
+      throw error;
     }
   }
 }

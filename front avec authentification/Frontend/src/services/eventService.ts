@@ -13,7 +13,18 @@ export interface Event {
   status?: string;
   nbParticipants?: number;
   createurId: number;
-  clubId?: number;
+  participants?: { id: number; userId: number; dateInscription: string; status: string }[]; // List of Participant objects
+}
+
+// Define the Participant interface
+export interface Participant {
+  id: number;
+  userId: number;
+  eventId: number;
+  dateInscription: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
 }
 
 // Export the service object
@@ -106,7 +117,7 @@ export const EventsService = {
   },
 
   // Get event participants
-  getEventParticipants: async (id: number): Promise<any[]> => {
+  getEventParticipants: async (id: number): Promise<Participant[]> => {
     try {
       console.log(`Fetching participants for event ${id}`);
       const res = await apiClient.get(`/events/${id}/participants`);
@@ -115,6 +126,39 @@ export const EventsService = {
     } catch (error) {
       console.error('Error fetching event participants:', error);
       return [];
+    }
+  },
+
+  // Upload an image for an event
+  uploadImage: async (id: number, file: File): Promise<string> => {
+    try {
+      console.log(`Uploading image for event ${id}`);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await apiClient.post(`/events/${id}/upload`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      console.log('Image upload response:', res.data);
+      return res.data;
+    } catch (error) {
+      console.error('Error uploading event image:', error);
+      throw error;
+    }
+  },
+
+  // Remove an image from an event
+  removeImage: async (id: number): Promise<boolean> => {
+    try {
+      console.log(`Removing image from event ${id}`);
+      const res = await apiClient.delete(`/events/${id}/image`);
+      console.log('Image removal response:', res.data);
+      return res.data;
+    } catch (error) {
+      console.error('Error removing event image:', error);
+      throw error;
     }
   }
 };
