@@ -112,12 +112,12 @@ public class UserServices {
             if (existingUser == null) {
                 throw new RuntimeException("User not found");
             }
-    
+
             // 2. Validate password
             if (!passwordEncoder.matches(loginRequest.getPassword(), existingUser.getPassword())) {
                 throw new RuntimeException("Invalid password");
             }
-    
+
             // 3. Check enabled status
             if (!existingUser.isCompteEnable()) {
                 throw new RuntimeException("User is not verified");
@@ -134,11 +134,11 @@ public class UserServices {
             if (existingUser.isSuspendu()) {
                 throw new RuntimeException("User account is suspended");
             }
-            
-    
+
+
             // 4. Generate JWT token
             String token = jwtTokenUtil.generateToken(loginRequest.getEmail());
-    
+
             // 5. Return success response with token
             return ResponseEntity.ok()
                     .header("Authorization", "Bearer " + token)
@@ -147,7 +147,7 @@ public class UserServices {
                             "token", token,
                             "user", new ResponseUser(existingUser.getFirstName(), existingUser.getEmail())
                     ));
-    
+
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
@@ -357,10 +357,59 @@ public String uploadImage(Long userId, MultipartFile file) throws IOException {
             .path(filename)
             .toUriString();
 
+    // Remove old image if exists
+    if (user.getImage() != null && !user.getImage().isEmpty()) {
+        removeImageFile(user.getImage());
+    }
+
     user.setImage(fileUrl); // Update User entity to store full URL
     userRepository.save(user);
 
     return fileUrl;
 }
+
+public boolean removeImage(Long userId) throws IOException {
+    Optional<User> userOptional = userRepository.findById(userId);
+    if (userOptional.isEmpty()) {
+        throw new RuntimeException("User not found");
+    }
+
+    User user = userOptional.get();
+
+    if (user.getImage() == null || user.getImage().isEmpty()) {
+        return false; // No image to remove
+    }
+
+    boolean removed = removeImageFile(user.getImage());
+
+    if (removed) {
+        user.setImage(null);
+        userRepository.save(user);
+    }
+
+    return removed;
+}
+
+private boolean removeImageFile(String imageUrl) {
+    try {
+        // Extract filename from URL
+        String filename = imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
+
+        // Create path to the file
+        Path filePath = Paths.get(System.getProperty("user.dir"), "uploads", filename);
+
+        // Delete the file if it exists
+        if (Files.exists(filePath)) {
+            Files.delete(filePath);
+            return true;
+        }
+        return false;
+    } catch (Exception e) {
+        e.printStackTrace();
+        return false;
+    }
+}
+
+
 
 }

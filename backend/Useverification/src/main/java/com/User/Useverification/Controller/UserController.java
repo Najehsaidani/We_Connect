@@ -1,13 +1,11 @@
 package com.User.Useverification.Controller;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.User.Useverification.Model.DTO.ProfileUpdateDTO;
-import com.User.Useverification.Model.DTO.UserDto;
 import com.User.Useverification.Model.entity.User;
 
 import com.User.Useverification.services.UserServices;
@@ -21,11 +19,10 @@ import java.util.Map;
 public class UserController {
 
     private final UserServices userService;
-    
 
     public UserController(UserServices userService) {
         this.userService = userService;
-        
+
     }
 
     @PutMapping("/update/{id}")
@@ -56,12 +53,12 @@ public class UserController {
     @GetMapping("/{id}")
     public User getuser(@PathVariable Long id) {
     return userService.getUser(id);
-        
+
     }
     @GetMapping("/email")
     public User getuser(@RequestParam String email) {
     return userService.getUserByEmail(email);
-        
+
     }
 
     @GetMapping("/all")
@@ -108,6 +105,12 @@ public class UserController {
 
         String fileUrl = userService.uploadImage(userId, file);
         return ResponseEntity.ok(fileUrl);
+    }
+
+    @DeleteMapping("/{userId}/image")
+    public ResponseEntity<Boolean> removeImage(@PathVariable Long userId) throws IOException {
+        boolean removed = userService.removeImage(userId);
+        return ResponseEntity.ok(removed);
     }
 
 }

@@ -41,5 +41,9 @@ public class Club {
 
     @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Publication> publications;
-     private String banner; // URL ou chemin de l'image de la bannière
+
+    private String banner; // URL ou chemin de l'image de la bannière
+
+    @Column(length = 1024)
+    private String image; // URL ou chemin de l'image principale du club
 }

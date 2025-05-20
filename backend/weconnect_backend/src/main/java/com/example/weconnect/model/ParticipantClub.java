@@ -6,8 +6,8 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "participants")
-public class Participant {
+@Table(name = "participants_club")
+public class ParticipantClub {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -16,10 +16,9 @@ public class Participant {
     private Long userId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "event_id", nullable = false)
+    @JoinColumn(name = "event_club_id", nullable = false)
     @JsonBackReference
-    private Event event;
-
+    private EventClub eventClub;
 
     @Column(nullable = false)
     private LocalDateTime dateInscription;
@@ -28,7 +27,7 @@ public class Participant {
     private ParticipantStatus status;
 
     // Constructeurs
-    public Participant() {
+    public ParticipantClub() {
         this.dateInscription = LocalDateTime.now();
         this.status = ParticipantStatus.CONFIRMED;
     }
@@ -50,14 +49,13 @@ public class Participant {
         this.userId = userId;
     }
 
-    public Event getEvent() {
-    return event;
-}
+    public EventClub getEventClub() {
+        return eventClub;
+    }
 
-public void setEvent(Event event) {
-    this.event = event;
-}
-
+    public void setEventClub(EventClub eventClub) {
+        this.eventClub = eventClub;
+    }
 
     public LocalDateTime getDateInscription() {
         return dateInscription;

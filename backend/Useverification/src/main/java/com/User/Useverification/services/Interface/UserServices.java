@@ -25,5 +25,6 @@ public interface UserServices {
     String deleteUser(Long id);
     List<UserDto> getAllUsers();
     String uploadImage(Long userId, MultipartFile file) throws IOException;
+    boolean removeImage(Long userId) throws IOException;
     // Add other methods like getUser, getUserByEmail if needed
 }

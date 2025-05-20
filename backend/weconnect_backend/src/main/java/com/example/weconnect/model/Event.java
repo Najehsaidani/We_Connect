@@ -7,8 +7,11 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.example.weconnect.enums.Status;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 @Entity
 @Data
@@ -33,7 +36,10 @@ public class Event {
 
     private Long createurId;
 
-    // Juste l'ID du club (le vrai Club est dans un autre service)
-    @Column(name = "club_id")
-    private Long clubId;
+    @Column(length = 1024)
+    private String image; // URL ou chemin de l'image de l'événement
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
+    @JsonManagedReference
+    private List<Participant> participants = new ArrayList<>();
 }

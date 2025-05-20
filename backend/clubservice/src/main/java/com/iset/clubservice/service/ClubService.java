@@ -3,7 +3,9 @@ package com.iset.clubservice.service;
 import com.iset.clubservice.model.dto.ClubDto;
 import com.iset.clubservice.model.dto.MembreClubDto;
 import com.iset.clubservice.model.entity.Club;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 public interface ClubService {
@@ -19,6 +21,8 @@ public interface ClubService {
     List<ClubDto> getClubsEnAttente();
     ClubDto quitterClub(Long clubId, Long userId);
     List<Club> searchClubs(String search, String category);
+    String uploadImage(Long clubId, MultipartFile file) throws IOException;
+    boolean removeImage(Long clubId) throws IOException;
 
 }
 

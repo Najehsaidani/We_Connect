@@ -6,6 +6,7 @@ import com.example.weconnect.model.Participant;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -16,4 +17,10 @@ public interface ParticipantRepository extends JpaRepository<Participant, Long> 
 
     // Compter les participants pour un événement donné
     long countByEventId(Long eventId);
+
+    // Trouver tous les participants d'un événement
+    List<Participant> findByEventId(Long eventId);
+
+    // Trouver toutes les participations d'un utilisateur
+    List<Participant> findByUserId(Long userId);
 }

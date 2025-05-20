@@ -4,8 +4,12 @@ import com.iset.clubservice.model.dto.ClubDto;
 import com.iset.clubservice.model.entity.Club;
 import com.iset.clubservice.service.ClubService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 import java.util.List;
 
@@ -16,6 +20,9 @@ public class ClubController {
 
     @Autowired
     private ClubService clubService;
+
+    @Value("${file.upload-dir:uploads}")
+    private String uploadDir;
 
     @PostMapping
     public ResponseEntity<ClubDto> create(@RequestBody ClubDto dto) {
@@ -84,6 +91,25 @@ public ResponseEntity<Void> quitterClub(@PathVariable Long clubId, @PathVariable
     public ResponseEntity<List<ClubDto>> getClubsEnAttente() {
         return ResponseEntity.ok(clubService.getClubsEnAttente());
     }
+
+    // 📷 Upload d'image pour un club
+    @PostMapping("/{id}/upload")
+    public ResponseEntity<String> uploadImage(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) throws IOException {
+
+        String fileUrl = clubService.uploadImage(id, file);
+        return ResponseEntity.ok(fileUrl);
+    }
+
+    // 🗑️ Supprimer l'image d'un club
+    @DeleteMapping("/{id}/image")
+    public ResponseEntity<Boolean> removeImage(@PathVariable Long id) throws IOException {
+        boolean removed = clubService.removeImage(id);
+        return ResponseEntity.ok(removed);
+    }
+
+
     @GetMapping("/search")
 public ResponseEntity<List<Club>> searchClubs(
     @RequestParam(required = false, defaultValue = "") String search,

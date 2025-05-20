@@ -22,4 +22,5 @@ public class ClubDto {
     private int members;  // Le nombre de membres
     private String banner; // URL ou chemin de la bannière
     private String profilePhoto;
+    private String image; // URL ou chemin de l'image principale du club
 }

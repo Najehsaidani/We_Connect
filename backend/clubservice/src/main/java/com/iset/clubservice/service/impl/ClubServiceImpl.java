@@ -1,8 +1,10 @@
 package com.iset.clubservice.service.impl;
 
+import com.iset.clubservice.client.UserClient;
 import com.iset.clubservice.model.dto.CategorySummaryDto;
 import com.iset.clubservice.model.dto.ClubDto;
 import com.iset.clubservice.model.dto.MembreClubDto;
+import com.iset.clubservice.model.dto.UserDTO;
 import com.iset.clubservice.model.entity.Category;
 import com.iset.clubservice.model.entity.Club;
 import com.iset.clubservice.model.entity.MembreClub;
@@ -13,31 +15,51 @@ import com.iset.clubservice.repository.ClubRepository;
 import com.iset.clubservice.repository.MembreClubRepository;
 import com.iset.clubservice.service.ClubService;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import lombok.AllArgsConstructor;
 
+
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Service
+@AllArgsConstructor
 public class ClubServiceImpl implements ClubService {
 
     private static final Logger log = LoggerFactory.getLogger(ClubServiceImpl.class);
 
-    @Autowired
+  
     private ClubRepository clubRepository;
 
-    @Autowired
+
     private CategoryRepository categoryRepository;
 
-    @Autowired
+   
     private MembreClubRepository membreClubRepository;
+
+   
+    private UserClient userClient;
 
     @Override
     public ClubDto createClub(ClubDto dto) {
+        // Vérifier si le créateur existe
+        UserDTO createur = userClient.getUserById(dto.getCreateurId());
+        if (createur == null) {
+            throw new IllegalArgumentException("Le créateur n'existe pas.");
+        }
+
         Category category = categoryRepository.findById(dto.getCategoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Catégorie non trouvée"));
 
@@ -59,6 +81,9 @@ public class ClubServiceImpl implements ClubService {
                 .club(club)
                 .build();
         membreClubRepository.save(membre);
+
+        log.info("Club créé par {} ({} {})",
+                dto.getCreateurId(), createur.getFirstName(), createur.getLastName());
 
         return toDto(club);
     }
@@ -115,20 +140,38 @@ public class ClubServiceImpl implements ClubService {
                 .members(membersCount)
                 .banner(c.getBanner())
                 .profilePhoto(null) // ou une valeur par défaut
+                .image(c.getImage()) // Ajout de l'image
                 .build();
     }
 
     private MembreClubDto toDto(MembreClub membre) {
-        return MembreClubDto.builder()
+        // Récupérer les informations de l'utilisateur via FeignClient
+        UserDTO user = userClient.getUserById(membre.getUserId());
+
+        MembreClubDto.MembreClubDtoBuilder builder = MembreClubDto.builder()
                 .id(membre.getId())
                 .userId(membre.getUserId())
                 .clubId(membre.getClub().getId())
-                .role(membre.getRole())
-                .build();
+                .role(membre.getRole());
+
+        // Ajouter les informations de l'utilisateur si disponibles
+        if (user != null) {
+            builder.firstName(user.getFirstName())
+                   .lastName(user.getLastName())
+                   .email(user.getEmail());
+        }
+
+        return builder.build();
     }
 
     @Override
     public MembreClubDto inscrireEtudiantAuClub(Long clubId, Long userId) {
+        // Vérifier si l'utilisateur existe via le service UserClient
+        UserDTO user = userClient.getUserById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("L'utilisateur n'existe pas.");
+        }
+
         if (membreClubRepository.existsByClubIdAndUserId(clubId, userId)) {
             throw new IllegalArgumentException("L'étudiant est déjà membre de ce club.");
         }
@@ -143,17 +186,26 @@ public class ClubServiceImpl implements ClubService {
                 .build();
 
         membre = membreClubRepository.save(membre);
-        log.info("L'étudiant {} s'est inscrit au club {}", userId, clubId);
+        log.info("L'étudiant {} ({} {}) s'est inscrit au club {}",
+                userId, user.getFirstName(), user.getLastName(), clubId);
 
         return toDto(membre);
     }
 
     @Override
     public ClubDto quitterClub(Long clubId, Long userId) {
+        // Vérifier si l'utilisateur existe
+        UserDTO user = userClient.getUserById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("L'utilisateur n'existe pas.");
+        }
+
         MembreClub membre = membreClubRepository.findByClubIdAndUserId(clubId, userId)
                 .orElseThrow(() -> new RuntimeException("L'utilisateur n'est pas inscrit dans ce club"));
 
         membreClubRepository.delete(membre);
+        log.info("L'utilisateur {} ({} {}) a quitté le club {}",
+                userId, user.getFirstName(), user.getLastName(), clubId);
 
         Club club = clubRepository.findById(clubId)
                 .orElseThrow(() -> new RuntimeException("Club non trouvé"));
@@ -163,6 +215,18 @@ public class ClubServiceImpl implements ClubService {
 
     @Override
     public MembreClubDto supprimerMembreDuClub(Long clubId, Long membreASupprimerId, Long adminId) {
+        // Vérifier si l'admin existe
+        UserDTO adminUser = userClient.getUserById(adminId);
+        if (adminUser == null) {
+            throw new IllegalArgumentException("L'administrateur n'existe pas.");
+        }
+
+        // Vérifier si le membre à supprimer existe
+        UserDTO membreUser = userClient.getUserById(membreASupprimerId);
+        if (membreUser == null) {
+            throw new IllegalArgumentException("Le membre à supprimer n'existe pas.");
+        }
+
         MembreClub admin = membreClubRepository.findByClubIdAndUserId(clubId, adminId)
                 .orElseThrow(() -> new IllegalArgumentException("Vous n'êtes pas membre de ce club."));
 
@@ -178,7 +242,10 @@ public class ClubServiceImpl implements ClubService {
                 .orElseThrow(() -> new IllegalArgumentException("Ce membre n'existe pas dans le club."));
 
         membreClubRepository.delete(membre);
-        log.warn("ADMIN {} a supprimé le membre {} du club {}", adminId, membreASupprimerId, clubId);
+        log.warn("ADMIN {} ({} {}) a supprimé le membre {} ({} {}) du club {}",
+                adminId, adminUser.getFirstName(), adminUser.getLastName(),
+                membreASupprimerId, membreUser.getFirstName(), membreUser.getLastName(),
+                clubId);
 
         return toDto(membre);
     }
@@ -214,6 +281,86 @@ public class ClubServiceImpl implements ClubService {
             return clubRepository.findByEtatAndNomContainingIgnoreCaseAndCategory_NomIgnoreCase(etat, search, category);
         } else {
             return clubRepository.findByEtatAndNomContainingIgnoreCase(etat, search);
+        }
+    }
+
+    private boolean isImageFile(MultipartFile file) {
+        String contentType = file.getContentType();
+        return contentType != null && contentType.startsWith("image/");
+    }
+
+    @Override
+    public String uploadImage(Long clubId, MultipartFile file) throws IOException {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new RuntimeException("Club not found"));
+
+        if (!isImageFile(file)) {
+            throw new IllegalArgumentException("Only image files are allowed.");
+        }
+
+        // Use absolute path for reliability
+        Path uploadPath = Paths.get(System.getProperty("user.dir"), "uploads");
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        Path filePath = uploadPath.resolve(filename);
+        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+        // Save full URL instead of just filename
+        String fileUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                .path("/uploads/")
+                .path(filename)
+                .toUriString();
+
+        // Remove old image if exists
+        if (club.getImage() != null && !club.getImage().isEmpty()) {
+            removeImageFile(club.getImage());
+        }
+
+        club.setImage(fileUrl);
+        clubRepository.save(club);
+
+        return fileUrl;
+    }
+
+    @Override
+    public boolean removeImage(Long clubId) throws IOException {
+        Club club = clubRepository.findById(clubId)
+                .orElseThrow(() -> new RuntimeException("Club not found"));
+
+        if (club.getImage() == null || club.getImage().isEmpty()) {
+            return false; // No image to remove
+        }
+
+        boolean removed = removeImageFile(club.getImage());
+
+        if (removed) {
+            club.setImage(null);
+            clubRepository.save(club);
+        }
+
+        return removed;
+    }
+
+    private boolean removeImageFile(String imageUrl) {
+        try {
+            // Extract filename from URL
+            String filename = imageUrl.substring(imageUrl.lastIndexOf("/") + 1);
+
+            // Create path to the file
+            Path filePath = Paths.get(System.getProperty("user.dir"), "uploads", filename);
+
+            // Delete the file if it exists
+            if (Files.exists(filePath)) {
+                Files.delete(filePath);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
         }
     }
 }
