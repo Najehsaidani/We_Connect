@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test des Rapports</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .report {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+        .report h3 {
+            margin-top: 0;
+        }
+        .status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-PENDING {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-REVIEWED {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        .status-RESOLVED {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .buttons {
+            margin-top: 10px;
+        }
+        button {
+            padding: 5px 10px;
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        #createReportForm {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        #createReportForm div {
+            margin-bottom: 10px;
+        }
+        #createReportForm label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        #createReportForm input, #createReportForm textarea {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        #createReportForm button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test des Rapports</h1>
+    
+    <div>
+        <button id="fetchAllReports">Récupérer tous les rapports</button>
+        <button id="fetchPendingReports">Récupérer les rapports en attente</button>
+    </div>
+    
+    <div id="message"></div>
+    
+    <div id="reports"></div>
+    
+    <div id="createReportForm">
+        <h2>Créer un nouveau rapport</h2>
+        <div>
+            <label for="postId">ID de la publication :</label>
+            <input type="number" id="postId" required>
+        </div>
+        <div>
+            <label for="userId">ID de l'utilisateur :</label>
+            <input type="number" id="userId" required>
+        </div>
+        <div>
+            <label for="reason">Raison :</label>
+            <textarea id="reason" required></textarea>
+        </div>
+        <button id="submitReport">Envoyer le rapport</button>
+    </div>
+    
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:9191/api'; // URL de l'API Gateway
+        
+        // Éléments DOM
+        const fetchAllReportsBtn = document.getElementById('fetchAllReports');
+        const fetchPendingReportsBtn = document.getElementById('fetchPendingReports');
+        const reportsContainer = document.getElementById('reports');
+        const messageContainer = document.getElementById('message');
+        const createReportForm = document.getElementById('createReportForm');
+        const submitReportBtn = document.getElementById('submitReport');
+        
+        // Événements
+        fetchAllReportsBtn.addEventListener('click', fetchAllReports);
+        fetchPendingReportsBtn.addEventListener('click', fetchPendingReports);
+        submitReportBtn.addEventListener('click', createReport);
+        
+        // Fonctions
+        async function fetchAllReports() {
+            try {
+                showMessage('Chargement des rapports...', false);
+                const response = await fetch(`${API_BASE_URL}/reports/all`);
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                const reports = await response.json();
+                displayReports(reports);
+                showMessage(`${reports.length} rapports récupérés.`, false);
+            } catch (error) {
+                console.error('Erreur lors de la récupération des rapports:', error);
+                showMessage(`Erreur: ${error.message}`, true);
+            }
+        }
+        
+        async function fetchPendingReports() {
+            try {
+                showMessage('Chargement des rapports en attente...', false);
+                const response = await fetch(`${API_BASE_URL}/reports/pending`);
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                const reports = await response.json();
+                displayReports(reports);
+                showMessage(`${reports.length} rapports en attente récupérés.`, false);
+            } catch (error) {
+                console.error('Erreur lors de la récupération des rapports en attente:', error);
+                showMessage(`Erreur: ${error.message}`, true);
+            }
+        }
+        
+        async function createReport() {
+            const postId = document.getElementById('postId').value;
+            const userId = document.getElementById('userId').value;
+            const reason = document.getElementById('reason').value;
+            
+            if (!postId || !userId || !reason) {
+                showMessage('Tous les champs sont obligatoires.', true);
+                return;
+            }
+            
+            try {
+                showMessage('Création du rapport...', false);
+                const response = await fetch(`${API_BASE_URL}/reports`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        postId: parseInt(postId),
+                        userId: parseInt(userId),
+                        reason: reason
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                const newReport = await response.json();
+                showMessage('Rapport créé avec succès!', false);
+                
+                // Réinitialiser le formulaire
+                document.getElementById('postId').value = '';
+                document.getElementById('userId').value = '';
+                document.getElementById('reason').value = '';
+                
+                // Rafraîchir la liste des rapports
+                fetchPendingReports();
+            } catch (error) {
+                console.error('Erreur lors de la création du rapport:', error);
+                showMessage(`Erreur: ${error.message}`, true);
+            }
+        }
+        
+        function displayReports(reports) {
+            reportsContainer.innerHTML = '';
+            
+            if (reports.length === 0) {
+                reportsContainer.innerHTML = '<p>Aucun rapport trouvé.</p>';
+                return;
+            }
+            
+            reports.forEach(report => {
+                const reportElement = document.createElement('div');
+                reportElement.className = 'report';
+                reportElement.innerHTML = `
+                    <h3>Rapport #${report.id}</h3>
+                    <p><strong>Raison:</strong> ${report.reason}</p>
+                    <p><strong>Statut:</strong> <span class="status status-${report.status}">${report.status}</span></p>
+                    <p><strong>Utilisateur:</strong> ${report.userId}</p>
+                    <p><strong>Publication:</strong> ${report.post ? report.post.id : 'N/A'}</p>
+                    <p><strong>Contenu de la publication:</strong> ${report.post ? report.post.content.substring(0, 100) + '...' : 'N/A'}</p>
+                    <p><strong>Date de création:</strong> ${new Date(report.createdAt).toLocaleString()}</p>
+                    <div class="buttons">
+                        <button onclick="updateReportStatus(${report.id}, 'RESOLVED')">Marquer comme résolu</button>
+                        <button onclick="deleteReport(${report.id})">Supprimer</button>
+                    </div>
+                `;
+                reportsContainer.appendChild(reportElement);
+            });
+        }
+        
+        async function updateReportStatus(reportId, status) {
+            try {
+                showMessage(`Mise à jour du statut du rapport #${reportId}...`, false);
+                const response = await fetch(`${API_BASE_URL}/reports/${reportId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                showMessage(`Statut du rapport #${reportId} mis à jour avec succès!`, false);
+                fetchAllReports();
+            } catch (error) {
+                console.error('Erreur lors de la mise à jour du statut du rapport:', error);
+                showMessage(`Erreur: ${error.message}`, true);
+            }
+        }
+        
+        async function deleteReport(reportId) {
+            if (!confirm(`Êtes-vous sûr de vouloir supprimer le rapport #${reportId}?`)) {
+                return;
+            }
+            
+            try {
+                showMessage(`Suppression du rapport #${reportId}...`, false);
+                const response = await fetch(`${API_BASE_URL}/reports/${reportId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP: ${response.status}`);
+                }
+                
+                showMessage(`Rapport #${reportId} supprimé avec succès!`, false);
+                fetchAllReports();
+            } catch (error) {
+                console.error('Erreur lors de la suppression du rapport:', error);
+                showMessage(`Erreur: ${error.message}`, true);
+            }
+        }
+        
+        function showMessage(message, isError) {
+            messageContainer.innerHTML = message;
+            messageContainer.className = isError ? 'error' : 'success';
+        }
+        
+        // Fonctions globales pour les boutons
+        window.updateReportStatus = updateReportStatus;
+        window.deleteReport = deleteReport;
+        
+        // Charger les rapports au chargement de la page
+        fetchAllReports();
+    </script>
+</body>
+</html>
