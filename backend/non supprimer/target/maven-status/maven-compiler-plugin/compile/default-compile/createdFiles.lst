@@ -1,0 +1,12 @@
+com\example\forum\exception\GlobalExceptionHandler.class
+com\example\forum\exception\ResourceNotFoundException.class
+com\example\forum\service\PostService.class
+com\example\forum\dto\PostResponse.class
+com\example\forum\model\Post$PostBuilder.class
+com\example\forum\repository\PostRepository.class
+com\example\forum\ForumApplication.class
+com\example\forum\controller\PostController.class
+com\example\forum\dto\PostResponse$PostResponseBuilder.class
+com\example\forum\model\Post.class
+com\example\forum\dto\PostRequest.class
+com\example\forum\config\CorsConfig.class

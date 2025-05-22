@@ -1,0 +1,10 @@
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\config\CorsConfig.java
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\controller\PostController.java
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\dto\PostRequest.java
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\dto\PostResponse.java
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\exception\GlobalExceptionHandler.java
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\exception\ResourceNotFoundException.java
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\ForumApplication.java
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\model\Post.java
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\repository\PostRepository.java
+c:\Users\tarek\OneDrive\Bureau\forum\src\main\java\com\example\forum\service\PostService.java
