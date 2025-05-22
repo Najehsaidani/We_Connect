@@ -1,9 +1,10 @@
 import React, { useState, useEffect, ChangeEvent, useCallback } from 'react';
-import { User, Mail, Phone, MapPin, Book, Briefcase, Calendar, Edit, Save, Camera, X } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Book, Briefcase, Calendar, Edit, Save, Camera, X, Eye, EyeOff, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Card,
   CardContent,
@@ -19,6 +20,7 @@ import {
   TabsTrigger
 } from "@/components/ui/tabs";
 import { userService } from '@/services/userService';
+import { authService } from '@/services/authService';
 import useAuth  from '@/hooks/useAuth';
 import UserActivityFeed from '@/components/UserActivityFeed';
 
@@ -41,6 +43,16 @@ const ProfilePage = () => {
   const { email, userId, refreshAuth } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmationPassword: ''
+  });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // State aligned with UserDTO structure
   const [profile, setProfile] = useState<UserProfile>({
@@ -154,6 +166,47 @@ const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     } catch (error) {
       console.error("Error saving profile:", error);
       toast({ title: 'Erreur', description: 'Impossible de sauvegarder les modifications' });
+    }
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setPasswordData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmationPassword) {
+      toast({ title: 'Erreur', description: 'Les nouveaux mots de passe ne correspondent pas' });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const userIdToUse = userId ? Number(userId) : profile.id;
+
+      if (!userIdToUse) {
+        throw new Error('User ID not available');
+      }
+
+      await authService.changePassword(userIdToUse, passwordData);
+
+      // Reset form and close dialog
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmationPassword: ''
+      });
+      setIsChangePasswordOpen(false);
+      toast({ title: 'Succès', description: 'Mot de passe modifié avec succès' });
+    } catch (error) {
+      console.error("Error changing password:", error);
+      toast({
+        title: 'Erreur',
+        description: error.response?.data?.error || error.message || 'Impossible de modifier le mot de passe'
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -442,8 +495,124 @@ const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
                   </div>
                   <div className="pt-4 border-t">
                     <h3 className="font-medium mb-2">Sécurité</h3>
-                    <Button variant="outline">Changer de mot de passe</Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsChangePasswordOpen(true)}
+                    >
+                      Changer de mot de passe
+                    </Button>
                   </div>
+
+                  {/* Change Password Dialog */}
+                  <Dialog open={isChangePasswordOpen} onOpenChange={setIsChangePasswordOpen}>
+                    <DialogContent className="sm:max-w-[425px]">
+                      <DialogHeader>
+                        <DialogTitle>Changer votre mot de passe</DialogTitle>
+                        <DialogDescription>
+                          Entrez votre mot de passe actuel et votre nouveau mot de passe.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        {/* Current Password */}
+                        <div className="space-y-2">
+                          <label htmlFor="currentPassword" className="text-sm font-medium">
+                            Mot de passe actuel
+                          </label>
+                          <div className="relative">
+                            <Input
+                              id="currentPassword"
+                              name="currentPassword"
+                              type={showCurrentPassword ? "text" : "password"}
+                              value={passwordData.currentPassword}
+                              onChange={handlePasswordChange}
+                              required
+                              className="pl-10"
+                            />
+                            <Lock className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                            <button
+                              type="button"
+                              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                              className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                            >
+                              {showCurrentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                          <p className="text-xs text-amber-500 mt-1 font-medium">
+                            Pour la démonstration, utilisez "password123" comme mot de passe actuel
+                          </p>
+                        </div>
+
+                        {/* New Password */}
+                        <div className="space-y-2">
+                          <label htmlFor="newPassword" className="text-sm font-medium">
+                            Nouveau mot de passe
+                          </label>
+                          <div className="relative">
+                            <Input
+                              id="newPassword"
+                              name="newPassword"
+                              type={showNewPassword ? "text" : "password"}
+                              value={passwordData.newPassword}
+                              onChange={handlePasswordChange}
+                              required
+                              minLength={8}
+                              className="pl-10"
+                            />
+                            <Lock className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                            >
+                              {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Confirm New Password */}
+                        <div className="space-y-2">
+                          <label htmlFor="confirmationPassword" className="text-sm font-medium">
+                            Confirmer le nouveau mot de passe
+                          </label>
+                          <div className="relative">
+                            <Input
+                              id="confirmationPassword"
+                              name="confirmationPassword"
+                              type={showConfirmPassword ? "text" : "password"}
+                              value={passwordData.confirmationPassword}
+                              onChange={handlePasswordChange}
+                              required
+                              minLength={8}
+                              className="pl-10"
+                            />
+                            <Lock className="w-5 h-5 absolute left-3 top-2.5 text-gray-400" />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                            >
+                              {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsChangePasswordOpen(false)}
+                          disabled={isSubmitting}
+                        >
+                          Annuler
+                        </Button>
+                        <Button
+                          onClick={handleChangePassword}
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting ? 'Chargement...' : 'Enregistrer'}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </CardContent>
                 <CardFooter className="flex justify-between">
                   <Button variant="outline" className="text-destructive">

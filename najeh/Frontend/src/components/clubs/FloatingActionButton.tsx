@@ -11,7 +11,7 @@ const FloatingActionButton = ({ onClick }: FloatingActionButtonProps) => {
     <button
       onClick={onClick}
       className="floating-action-button"
-      aria-label="Créer un club"
+      aria-label="Créer un club" disabled style={{display: 'none'}}
     >
       <Plus size={24} />
     </button>

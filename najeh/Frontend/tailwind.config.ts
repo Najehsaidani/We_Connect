@@ -37,6 +37,10 @@ export default {
 					DEFAULT: 'hsl(var(--destructive))',
 					foreground: 'hsl(var(--destructive-foreground))'
 				},
+				warning: {
+					DEFAULT: 'hsl(var(--warning))',
+					foreground: 'hsl(var(--warning-foreground))'
+				},
 				muted: {
 					DEFAULT: 'hsl(var(--muted))',
 					foreground: 'hsl(var(--muted-foreground))'
@@ -65,7 +69,7 @@ export default {
 				},
 				// Campus Forum custom colors
 				forum: {
-					primary: '#9b87f5', 
+					primary: '#9b87f5',
 					secondary: '#7E69AB',
 					accent: '#FEC6A1',
 					muted: '#F1F0FB',

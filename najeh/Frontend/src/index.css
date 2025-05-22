@@ -23,6 +23,8 @@
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 100% 50%;
     --destructive-foreground: 210 40% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 210 40% 98%;
     --ring: 215 20.2% 65.1%;
     --radius: 0.5rem;
     --sidebar-background: 222.2 84% 4.9%;
@@ -54,6 +56,8 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 85.7% 97.3%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
     --ring: 217.2 91.2% 59.8%;
     --sidebar-background: 222.2 84% 4.9%;
     --sidebar-foreground: 210 40% 98%;
@@ -74,22 +78,22 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-  
+
   input[type="checkbox"].toggle {
     @apply appearance-none w-9 h-5 rounded-full bg-muted relative cursor-pointer transition-colors;
     box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
   }
-  
+
   input[type="checkbox"].toggle:checked {
     @apply bg-primary;
   }
-  
+
   input[type="checkbox"].toggle::before {
     content: '';
     @apply absolute w-4 h-4 bg-white rounded-full left-0.5 top-0.5 transform transition-transform;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
-  
+
   input[type="checkbox"].toggle:checked::before {
     @apply translate-x-4;
   }
@@ -99,35 +103,35 @@
   .page-container {
     @apply container max-w-5xl mx-auto py-8 px-4;
   }
-  
+
   .page-title {
     @apply text-3xl font-bold mb-2 text-foreground;
   }
-  
+
   .page-subtitle {
     @apply text-lg text-muted-foreground;
   }
-  
+
   .card-hover {
     @apply transition-all duration-200 hover:shadow-md;
   }
-  
+
   .nav-link {
     @apply px-4 py-2 rounded-md text-foreground hover:bg-muted transition-colors;
   }
-  
+
   .nav-link-active {
     @apply bg-primary/10 text-primary font-medium;
   }
-  
+
   .btn-primary {
     @apply px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors;
   }
-  
+
   .input-field {
     @apply w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
   }
-  
+
   .floating-action-button {
     @apply fixed bottom-6 left-6 md:bottom-8 md:right-8 w-14 h-14 rounded-full bg-primary text-white shadow-lg flex items-center justify-center hover:bg-primary/90 transition-transform hover:scale-105 z-10;
   }

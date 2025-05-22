@@ -26,12 +26,14 @@ import EventsPage from "./pages/EventsPage";
 import ChatPage from "./pages/ChatPage";
 import ProfilePage from "./pages/ProfilePage";
 import AdminPage from "./pages/AdminPage";
+import ClubManagementPage from "./pages/ClubManagementPage";
+import ClubAdminPage from "./pages/ClubAdminPage";
 import NotFound from "./pages/NotFound";
 
 // Components
 import ProtectedRoute from "./components/ProtectedRoute";
 
-//import UserProfilePopup from "./pages/Profile";
+import UserProfilePopup from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -72,7 +74,10 @@ const App = () => (
               <Route path="events" element={<EventsPage />} />
               <Route path="chat" element={<ChatPage />} />
               <Route path="profile" element={<ProfilePage />} />
-             
+              {/* Route pour l'administration des clubs - accessible aux modérateurs */}
+              <Route path="club-admin/:id" element={<ClubManagementPage />} />
+              {/* Nouvelle route pour l'administration des clubs avec création d'événements */}
+              <Route path="club-admin-events/:id" element={<ClubAdminPage />} />
             </Route>
           </Route>
 

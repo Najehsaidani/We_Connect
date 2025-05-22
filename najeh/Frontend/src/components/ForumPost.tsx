@@ -33,6 +33,7 @@ interface ForumPostProps {
   onDelete?: (id: number) => void;
   onEdit?: (id: number, updatedContent: string) => void;
 }
+const api_url='http://localhost:8082/api';
 
 const ForumPost = ({ post, onDelete, onEdit }: ForumPostProps) => {
   const [currentPost, setCurrentPost] = useState<Post>(post);
@@ -52,7 +53,7 @@ const ForumPost = ({ post, onDelete, onEdit }: ForumPostProps) => {
         return;
       }
 
-      const response = await fetch(`http://localhost:8082/api/posts/${currentPost.id}/like?userId=${currentUserId}`, {
+      const response = await fetch(`${api_url}/posts/${currentPost.id}/like?userId=${currentUserId}`, {
         method: 'POST',
       });
 

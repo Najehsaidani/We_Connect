@@ -1,7 +1,8 @@
 import apiClient from '../services/api';
+import { EventStatus } from "@/types/event";
 
-// Define the EventClub interface to match the backend model
 export interface EventClub {
+  eventClubId: number;
   id?: number;
   titre: string;
   description: string;
@@ -10,14 +11,13 @@ export interface EventClub {
   dateFin: string;
   nomClub?: string;
   image?: string;
-  status?: string;
+  status?: EventStatus;
   nbParticipants?: number;
   createurId: number;
   clubId?: number;
-  participantsClub?: { id: number; userId: number; dateInscription: string; status: string }[]; // List of ParticipantClub objects
+  participantsClub?: { id: number; userId: number; dateInscription: string; status: string }[];
 }
 
-// Define the Participant interface
 export interface Participant {
   id: number;
   userId: number;
@@ -28,56 +28,97 @@ export interface Participant {
   email?: string;
 }
 
-// Export the service object
 export const eventsClubsService = {
-  // Get all eventsClubs
   getAllEventsClubs: async (): Promise<EventClub[]> => {
     try {
-      console.log('Fetching all club events from /eventsClubs');
-      const res = await apiClient.get('/eventsClubs');
-      console.log('Club events response:', res.data);
-      return res.data;
+      console.log('Fetching all club events from API');
+      const res = await apiClient.get('/clubs/events', {
+        timeout: 15000,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (Array.isArray(res.data)) {
+        return res.data.map((event: any) => {
+          // Mapper le statut selon les valeurs de l'enum EventStatus dans club.ts
+          let mappedStatus = event.status;
+          if (event.status === "ACTIF") {
+            mappedStatus = "EN_COURS";
+          } else if (event.status === "ACTIVE") {
+            mappedStatus = "EN_COURS";
+          } else if (event.status === "INACTIVE") {
+            mappedStatus = "ANNULE";
+          } else if (event.status === "TERMINE") {
+            mappedStatus = "PASSE";
+          }
+
+          return {
+            ...event,
+            status: mappedStatus || "AVENIR"
+          };
+        });
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching club events:', error);
-      return []; // Return empty array instead of throwing
+      return [];
     }
   },
 
-  // Search eventsClubs
   searchEventsClubs: async (searchTerm: string): Promise<EventClub[]> => {
     try {
-      const res = await apiClient.get('/eventsClubs/search', {
+      const res = await apiClient.get('/clubs/events/search', {
         params: { search: searchTerm },
       });
       return res.data;
     } catch (error) {
       console.error('Error searching club events:', error);
-      return []; // Return empty array instead of throwing
+      return [];
     }
   },
 
-  // Create an event
   createEvent: async (
     createurId: number,
     event: Partial<Omit<EventClub, 'id' | 'createurId'>>
   ): Promise<EventClub> => {
     try {
-      // Format the event data to match the backend model
+      // Normaliser le statut de l'événement pour le backend
+      let status = event.status || "AVENIR";
+
+      // Mapper les statuts entre les différentes énumérations
+      switch (status) {
+        case 'ACTIVE':
+          status = 'EN_COURS' as any;
+          break;
+        case 'INACTIVE':
+          status = 'ANNULE' as any;
+          break;
+        case 'TERMINE':
+          status = 'PASSE' as any;
+          break;
+        // Pas besoin de mapper AVENIR car il existe dans les deux enums
+      }
+
       const eventData = {
         titre: event.titre || '',
         description: event.description || '',
         lieu: event.lieu || '',
         dateDebut: event.dateDebut || new Date().toISOString(),
-        dateFin: event.dateFin || new Date(new Date().getTime() + 3600000).toISOString(), // 1 hour later
+        dateFin: event.dateFin || new Date(new Date().getTime() + 3600000).toISOString(),
         nomClub: event.nomClub || 'Club',
-        status: event.status || 'AVENIR',
-        clubId: event.clubId || 1 // Default club ID
+        status: status,
+        clubId: event.clubId || 1
       };
 
-      console.log('Creating club event with data:', eventData);
-      // Pass createurId as a request parameter
-      const res = await apiClient.post(`/eventsClubs/create?createurId=${createurId}`, eventData);
-      console.log('Create club event response:', res.data);
+      const res = await apiClient.post(`/clubs/events/club/${eventData.clubId}?createurId=${createurId}`, eventData, {
+        timeout: 15000,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
       return res.data;
     } catch (error) {
       console.error('Error creating club event:', error);
@@ -85,17 +126,50 @@ export const eventsClubsService = {
     }
   },
 
-  // Update an event
   updateEvent: async (
     id: number,
     updates: Partial<Omit<EventClub, 'id' | 'createurId'>>,
-    createurId: number = 1 // Default to admin ID if not provided
+    createurId: number = 1
   ): Promise<EventClub> => {
     try {
-      console.log(`Updating club event ${id} with data:`, updates);
-      // Pass createurId as a request parameter
-      const res = await apiClient.put(`/eventsClubs/${id}?createurId=${createurId}`, updates);
-      console.log('Update club event response:', res.data);
+      // Normaliser le statut de l'événement pour le backend
+      // Créer une copie des mises à jour sans le createurId
+      let normalizedUpdates = { ...updates };
+
+      // Supprimer createurId du corps de la requête s'il existe
+      if ('createurId' in normalizedUpdates) {
+        delete (normalizedUpdates as any).createurId;
+      }
+
+      // Si le statut est défini, le normaliser selon l'enum EventStatus de club.ts
+      if (normalizedUpdates.status) {
+        // Mapper les statuts entre les différentes énumérations
+        switch (normalizedUpdates.status) {
+          case 'ACTIVE':
+            normalizedUpdates.status = 'EN_COURS' as any;
+            break;
+          case 'INACTIVE':
+            normalizedUpdates.status = 'ANNULE' as any;
+            break;
+          case 'TERMINE':
+            normalizedUpdates.status = 'PASSE' as any;
+            break;
+          // Pas besoin de mapper AVENIR car il existe dans les deux enums
+        }
+      }
+
+      console.log(`Updating club event ${id} with normalized data:`, normalizedUpdates);
+
+      // Vérifier si clubId est présent dans les données
+      if (!normalizedUpdates.clubId && normalizedUpdates.clubId !== 0) {
+        console.warn("clubId is missing in update data, adding default value");
+        normalizedUpdates.clubId = 1; // Valeur par défaut
+      }
+
+      // Utiliser le createurId comme paramètre d'URL, comme attendu par le backend
+      console.log(`Sending update request for club event ${id} with createurId=${createurId}`);
+
+      const res = await apiClient.put(`/clubs/events/${id}?createurId=${createurId}`, normalizedUpdates);
       return res.data;
     } catch (error) {
       console.error('Error updating club event:', error);
@@ -103,28 +177,25 @@ export const eventsClubsService = {
     }
   },
 
-  // Delete an event
   deleteEvent: async (
     id: number,
-    createurId: number = 1 // Default to admin ID if not provided
+    createurId: number = 1
   ): Promise<void> => {
     try {
-      console.log(`Deleting club event ${id}`);
-      // Pass createurId as a request parameter
-      await apiClient.delete(`/eventsClubs/${id}?createurId=${createurId}`);
-      console.log(`Club event ${id} deleted successfully`);
+      console.log(`Deleting club event ${id} with createurId ${createurId}`);
+
+      // Utiliser uniquement le createurId comme paramètre d'URL, comme attendu par le backend
+      await apiClient.delete(`/clubs/events/${id}?createurId=${createurId}`);
+      console.log(`Successfully deleted club event ${id}`);
     } catch (error) {
       console.error('Error deleting club event:', error);
       throw error;
     }
   },
 
-  // Get event participants
   getEventParticipants: async (id: number): Promise<Participant[]> => {
     try {
-      console.log(`Fetching participants for club event ${id}`);
-      const res = await apiClient.get(`/eventsClubs/${id}/participants`);
-      console.log('Club event participants response:', res.data);
+      const res = await apiClient.get(`/clubs/events/${id}/participants`);
       return res.data;
     } catch (error) {
       console.error('Error fetching club event participants:', error);
@@ -132,19 +203,16 @@ export const eventsClubsService = {
     }
   },
 
-  // Upload an image for a club event
   uploadImage: async (id: number, file: File): Promise<string> => {
     try {
-      console.log(`Uploading image for club event ${id}`);
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await apiClient.post(`/eventsClubs/${id}/upload`, formData, {
+      const res = await apiClient.post(`/clubs/events/${id}/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
-      console.log('Club event image upload response:', res.data);
       return res.data;
     } catch (error) {
       console.error('Error uploading club event image:', error);
@@ -152,12 +220,9 @@ export const eventsClubsService = {
     }
   },
 
-  // Remove an image from a club event
   removeImage: async (id: number): Promise<boolean> => {
     try {
-      console.log(`Removing image from club event ${id}`);
-      const res = await apiClient.delete(`/eventsClubs/${id}/image`);
-      console.log('Club event image removal response:', res.data);
+      const res = await apiClient.delete(`/clubs/events/${id}/image`);
       return res.data;
     } catch (error) {
       console.error('Error removing club event image:', error);

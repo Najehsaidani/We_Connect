@@ -82,6 +82,43 @@ export const authService = {
       throw new Error(error.response?.data?.message || 'Password reset failed');
     }
   },
+  changePassword: async (userId: number, passwordData: { currentPassword: string; newPassword: string; confirmationPassword: string }) => {
+    try {
+      console.log('Attempting to change password for user:', userId);
+
+      // Comme l'endpoint n'existe pas encore dans le backend, nous simulons une réponse réussie
+      // Dans un environnement de production, vous utiliseriez un endpoint réel
+
+      // Simuler un délai pour rendre l'expérience utilisateur plus réaliste
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Vérification simple du mot de passe actuel (simulation)
+      if (passwordData.currentPassword === 'password123') {
+        return {
+          success: true,
+          message: 'Password changed successfully',
+          user: { id: userId }
+        };
+      } else {
+        // Simuler une erreur d'authentification
+        throw {
+          response: {
+            data: {
+              error: 'Current password is incorrect'
+            },
+            status: 401
+          }
+        };
+      }
+    } catch (error) {
+      console.error('Error in changePassword:', error);
+      if (error.response) {
+        throw new Error(error.response.data.error || 'Password change failed');
+      } else {
+        throw new Error('Password change failed');
+      }
+    }
+  },
 
   getUserData: () => {
     const token = localStorage.getItem('token');

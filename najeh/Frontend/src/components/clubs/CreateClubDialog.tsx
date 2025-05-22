@@ -1,53 +1,66 @@
-
-import React, { useState } from 'react';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import React from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { InfoIcon } from "lucide-react";
 import PhotoUploader from "@/components/PhotoUploader";
+
+interface CategoryDto {
+  id: number;
+  nom: string; // Utiliser 'nom' au lieu de 'name' pour correspondre au backend
+}
+
+interface NewClub {
+  // Propriétés principales alignées avec ClubDto
+  nom: string;                // Nom du club
+  description: string;        // Description du club
+  categoryId?: number;        // ID de la catégorie sélectionnée
+  categoryName: string;       // Nom de la catégorie (pour l'affichage dans le formulaire)
+  image?: string;             // URL de l'image principale du club
+  banner?: string;            // URL de la bannière du club
+  dateCreation: string;       // Date de création du club
+  imageFile?: File | null;    // Fichier image pour l'upload (non stocké dans le DTO)
+
+  // Propriétés pour la compatibilité avec l'ancien code
+  name?: string;              // Alias pour nom (pour la compatibilité)
+  category?: string;          // Alias pour categoryName (pour la compatibilité)
+  coverPhoto?: string;        // Alias pour banner (pour la compatibilité)
+  profilePhoto?: string;      // Alias pour image (pour la compatibilité)
+}
 
 interface CreateClubDialogProps {
   open: boolean;
+  onClose: () => void;
   onOpenChange: (open: boolean) => void;
-  onCreateClub: () => void;
+  onCreateClub: () => Promise<void>; // Changé en Promise<void>
+  onClubCreated: () => Promise<void>;
   isLoading: boolean;
-  newClub: {
-    name: string;
-    description: string;
-    category: string;
-    coverPhoto: string;
-    profilePhoto: string;
-  };
-  setNewClub: React.Dispatch<React.SetStateAction<{
-    name: string;
-    description: string;
-    category: string;
-    coverPhoto: string;
-    profilePhoto: string;
-  }>>;
+  newClub: NewClub;
+  setNewClub: React.Dispatch<React.SetStateAction<NewClub>>;
+  categories: CategoryDto[];
 }
 
-const CreateClubDialog = ({ 
-  open, 
-  onOpenChange, 
-  onCreateClub, 
-  isLoading, 
-  newClub, 
-  setNewClub 
+const CreateClubDialog = ({
+  open,
+  onClose,
+  onOpenChange,
+  onCreateClub,
+  onClubCreated,
+  isLoading,
+  newClub,
+  setNewClub,
+  categories
 }: CreateClubDialogProps) => {
-  const handleProfilePhotoAdded = (photoUrl: string) => {
-    setNewClub({...newClub, profilePhoto: photoUrl});
-  };
-  
-  const handleCoverPhotoAdded = (photoUrl: string) => {
-    setNewClub({...newClub, coverPhoto: photoUrl});
-  };
+
+  // Fonction supprimée car nous utilisons directement setNewClub
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -55,41 +68,67 @@ const CreateClubDialog = ({
         <DialogHeader>
           <DialogTitle>Créer un nouveau club</DialogTitle>
         </DialogHeader>
-        
+
+        <Alert className="bg-blue-50 border-blue-200 mb-4">
+          <AlertDescription className="flex items-start">
+            <InfoIcon className="h-5 w-5 mr-2 text-blue-500 flex-shrink-0 mt-0.5" />
+            <span className="text-blue-700">
+              Votre demande de création de club sera envoyée à l'administrateur pour validation.
+              Une fois approuvée, vous aurez accès à l'interface d'administration de votre club
+              avec le rôle de modérateur.
+            </span>
+          </AlertDescription>
+        </Alert>
+
         <div className="space-y-4 py-4">
           <div>
-            <label htmlFor="club-cover-photo" className="block text-sm font-medium mb-1">
-              Photo de couverture
+            <label className="block text-sm font-medium mb-1">
+              Logo du club *
             </label>
-            <PhotoUploader 
-              onPhotoAdded={handleCoverPhotoAdded} 
-              onPhotoRemoved={() => setNewClub({...newClub, coverPhoto: ''})}
+            <PhotoUploader
+              onPhotoAdded={(url, file) => {
+                // Mettre à jour à la fois image et profilePhoto pour la compatibilité
+                // Utiliser la même image pour le logo et la bannière
+                setNewClub({
+                  ...newClub,
+                  image: url,
+                  profilePhoto: url,
+                  // Utiliser la même image pour la bannière pour la compatibilité
+                  banner: url,
+                  coverPhoto: url,
+                  // Stocker le fichier pour l'upload séparé
+                  imageFile: file
+                });
+              }}
+              onPhotoRemoved={() => {
+                setNewClub({
+                  ...newClub,
+                  image: '',
+                  profilePhoto: '',
+                  banner: '',
+                  coverPhoto: '',
+                  imageFile: null
+                });
+              }}
             />
           </div>
-          
-          <div>
-            <label htmlFor="club-profile-photo" className="block text-sm font-medium mb-1">
-              Logo du club
-            </label>
-            <PhotoUploader 
-              onPhotoAdded={handleProfilePhotoAdded}
-              onPhotoRemoved={() => setNewClub({...newClub, profilePhoto: ''})}
-            />
-          </div>
-          
+
           <div>
             <label htmlFor="club-name" className="block text-sm font-medium mb-1">
               Nom du club *
             </label>
             <Input
               id="club-name"
-              value={newClub.name}
-              onChange={(e) => setNewClub({...newClub, name: e.target.value})}
+              value={newClub.nom || newClub.name || ''}
+              onChange={(e) => {
+                // Mettre à jour à la fois nom et name pour la compatibilité
+                setNewClub({ ...newClub, nom: e.target.value, name: e.target.value });
+              }}
               placeholder="Nom de votre club"
               required
             />
           </div>
-          
+
           <div>
             <label htmlFor="club-description" className="block text-sm font-medium mb-1">
               Description *
@@ -97,46 +136,75 @@ const CreateClubDialog = ({
             <Textarea
               id="club-description"
               value={newClub.description}
-              onChange={(e) => setNewClub({...newClub, description: e.target.value})}
+              onChange={(e) => setNewClub({ ...newClub, description: e.target.value })}
               placeholder="Décrivez l'objectif et les activités de votre club"
               className="min-h-[100px]"
               required
             />
           </div>
-          
+
           <div>
             <label htmlFor="club-category" className="block text-sm font-medium mb-1">
-              Catégorie
+              Catégorie *
             </label>
             <select
               id="club-category"
-              value={newClub.category}
-              onChange={(e) => setNewClub({...newClub, category: e.target.value})}
-              className="input-field"
+              value={newClub.categoryName || newClub.category || ''}
+              onChange={(e) => {
+                // Trouver l'ID de la catégorie sélectionnée
+                const selectedCategory = categories.find(cat => cat.nom === e.target.value);
+                const categoryId = selectedCategory ? selectedCategory.id : undefined;
+
+                // Mettre à jour à la fois categoryName, category et categoryId
+                setNewClub({
+                  ...newClub,
+                  categoryName: e.target.value,
+                  category: e.target.value,
+                  categoryId: categoryId
+                });
+              }}
+              className="input-field w-full px-3 py-2 border rounded-md"
+              required
             >
-              <option value="Académique">Académique</option>
-              <option value="Sport">Sport</option>
-              <option value="Arts">Arts</option>
-              <option value="Solidarité">Solidarité</option>
-              <option value="Professionnel">Professionnel</option>
-              <option value="Loisirs">Loisirs</option>
+              <option value="">Sélectionner une catégorie</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.nom}>
+                  {cat.nom}
+                </option>
+              ))}
             </select>
           </div>
+
+          <div>
+            <label htmlFor="club-dateCreation" className="block text-sm font-medium mb-1">
+              Date de création *
+            </label>
+            <Input
+              id="club-dateCreation"
+              type="date"
+              value={newClub.dateCreation}
+              onChange={(e) => setNewClub({ ...newClub, dateCreation: e.target.value })}
+              required
+            />
+          </div>
         </div>
-        
+
         <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={() => onOpenChange(false)}
+          <Button
+            variant="outline"
+            onClick={onClose}
             disabled={isLoading}
           >
             Annuler
           </Button>
-          <Button 
-            onClick={onCreateClub}
+          <Button
+            onClick={async () => {
+              await onCreateClub();
+              await onClubCreated();
+            }}
             disabled={isLoading}
           >
-            {isLoading ? 'Création en cours...' : 'Créer le club'}
+            {isLoading ? 'Envoi en cours...' : 'Soumettre la demande'}
           </Button>
         </DialogFooter>
       </DialogContent>

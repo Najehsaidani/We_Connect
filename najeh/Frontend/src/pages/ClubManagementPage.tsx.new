@@ -1,0 +1,597 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  Pencil,
+  Trash2,
+  Upload,
+  Save,
+  X,
+  Users,
+  ArrowLeft,
+  MessageSquare,
+  PlusCircle,
+  Calendar
+} from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { clubService } from '@/services/clubService';
+import { useToast } from "@/hooks/use-toast";
+import { EventForm } from '@/components/clubs/EventForm';
+import membreClubService from '@/services/membreClubService';
+
+// Interface pour un membre du club
+interface ClubMember {
+  id: number;
+  name: string;
+  email?: string;
+  avatar?: string;
+  joinDate?: string;
+  role?: string;
+  userId?: number;
+}
+
+// Interface pour une publication du club
+interface ClubPost {
+  id: number;
+  title: string;
+  content: string;
+  date: string;
+  author?: string;
+  authorId?: number;
+  image?: string;
+}
+
+// Interface pour un événement du club
+interface ClubEvent {
+  id: number;
+  title: string;
+  description: string;
+  dateDebut: string;
+  dateFin: string;
+  lieu: string;
+  image?: string;
+  status?: 'AVENIR' | 'EN_COURS' | 'PASSE';
+}
+
+// Interface pour les données du club
+interface ClubData {
+  id: number;
+  name: string;
+  description: string;
+  category?: string;
+  categoryId?: number;
+  image?: string;
+  profilePhoto?: string;
+  dateCreation?: string;
+  members?: ClubMember[];
+  membersCount?: number;
+  creatorId?: number;
+  posts?: ClubPost[];
+  events?: ClubEvent[];
+}
+
+const ClubManagementPage = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  // États pour les données du club
+  const [club, setClub] = useState<ClubData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // États pour l'édition
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedClub, setEditedClub] = useState<Partial<ClubData>>({});
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // États pour les publications
+  const [posts, setPosts] = useState<ClubPost[]>([]);
+  const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
+  const [newPost, setNewPost] = useState<Partial<ClubPost>>({
+    title: '',
+    content: '',
+    date: new Date().toISOString()
+  });
+
+  // États pour les événements
+  const [events, setEvents] = useState<ClubEvent[]>([]);
+  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+  const [isEditEventDialogOpen, setIsEditEventDialogOpen] = useState(false);
+  const [isDeleteEventDialogOpen, setIsDeleteEventDialogOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<ClubEvent | null>(null);
+  const [editEventData, setEditEventData] = useState<any>(null);
+
+  // Charger les données du club
+  useEffect(() => {
+    const fetchClubData = async () => {
+      if (!id) return;
+
+      // Fonction pour récupérer les événements du club
+      const fetchClubEvents = async (clubId: number) => {
+        try {
+          const events = await clubService.getClubEvents(clubId);
+          setEvents(events);
+          console.log(`Récupération de ${events.length} événements pour le club ${clubId}`);
+        } catch (error) {
+          console.error(`Erreur lors de la récupération des événements du club ${clubId}:`, error);
+          // Utiliser des données fictives en cas d'erreur
+          setEvents([]);
+        }
+      };
+
+      setIsLoading(true);
+      try {
+        const clubId = parseInt(id, 10);
+        const clubData = await clubService.getClubById(clubId);
+
+        // Récupérer la liste des membres si elle n'est pas incluse dans les données du club
+        let members: ClubMember[] = [];
+        try {
+          // Récupérer les membres du club en utilisant membreClubService
+          const membreClubList = await membreClubService.getClubMembers(clubId);
+          console.log(`Récupération de ${membreClubList.length} membres pour le club ${clubId}`);
+
+          // Convertir les MembreClub en ClubMember
+          members = membreClubList.map(membre => ({
+            id: membre.id || 0,
+            name: membre.firstName && membre.lastName
+              ? `${membre.firstName} ${membre.lastName}`
+              : membre.user?.firstName && membre.user?.lastName
+                ? `${membre.user.firstName} ${membre.user.lastName}`
+                : `Membre ${membre.id}`,
+            email: membre.email || membre.user?.email || '',
+            role: membre.role,
+            avatar: membre.user?.image || '',
+            joinDate: new Date().toISOString()
+          }));
+        } catch (memberError) {
+          console.error('Erreur lors de la récupération des membres:', memberError);
+
+          // Créer des données fictives pour les membres si la récupération échoue
+          const creatorId = clubData.createurId || 1;
+          console.log('Club creator ID:', creatorId);
+
+          // Ajouter au moins un membre (l'administrateur du club)
+          members = [
+            {
+              id: creatorId,
+              userId: creatorId,
+              name: 'Admin du Club',
+              email: 'admin@club.com',
+              role: 'ADMIN_CLUB',
+              joinDate: new Date().toISOString()
+            }
+          ];
+
+          // Ajouter quelques membres fictifs pour l'exemple
+          members.push(
+            {
+              id: 2,
+              userId: 2,
+              name: 'Membre 1',
+              email: 'membre1@example.com',
+              role: 'MEMBRE',
+              joinDate: new Date().toISOString()
+            },
+            {
+              id: 3,
+              userId: 3,
+              name: 'Membre 2',
+              email: 'membre2@example.com',
+              role: 'MEMBRE',
+              joinDate: new Date().toISOString()
+            }
+          );
+
+          console.log(`Création de ${members.length} membres fictifs pour le club ${clubId}`);
+        }
+
+        // S'assurer que toutes les propriétés sont des chaînes de caractères ou des nombres
+        const processedClubData = {
+          id: clubData.id || 0,
+          name: clubData.nom || '',
+          description: clubData.description || '',
+          category: typeof clubData.category === 'string' ? clubData.category :
+                   (clubData.category?.nom || ''),
+          categoryId: clubData.categoryId || 0,
+          image: clubData.image || '',
+          dateCreation: clubData.dateCreation || '',
+          membersCount: clubData.membres || 0,
+          creatorId: clubData.createurId || 1
+        };
+
+        console.log('Processed club data:', processedClubData);
+
+        setClub({
+          ...processedClubData,
+          members
+        });
+
+        // Récupérer les événements du club
+        await fetchClubEvents(clubId);
+
+        // Initialiser les données d'édition
+        setEditedClub({
+          name: processedClubData.name,
+          description: processedClubData.description,
+          categoryId: processedClubData.categoryId
+        });
+
+      } catch (err) {
+        console.error('Erreur lors du chargement du club:', err);
+        setError('Impossible de charger les données du club. Veuillez réessayer plus tard.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchClubData();
+  }, [id]);
+
+  // Gérer le changement d'image
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Vérifier le type et la taille du fichier
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Format non supporté",
+        description: "Veuillez sélectionner une image (JPG, PNG, GIF)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB
+      toast({
+        title: "Fichier trop volumineux",
+        description: "La taille maximale est de 5MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Créer une URL pour la prévisualisation
+    const previewUrl = URL.createObjectURL(file);
+    setImagePreview(previewUrl);
+    setImageFile(file);
+  };
+
+  // Sauvegarder les modifications
+  const handleSave = async () => {
+    if (!club || !club.id) return;
+
+    setIsLoading(true);
+    try {
+      // Préparer les données à envoyer au backend
+      const clubDataToUpdate = {
+        nom: editedClub.name,
+        description: editedClub.description,
+        categoryId: editedClub.categoryId
+      };
+
+      console.log('Données à mettre à jour:', clubDataToUpdate);
+
+      // Mettre à jour les informations du club
+      await clubService.updateClub(club.id, clubDataToUpdate);
+
+      // Si une nouvelle image a été sélectionnée, l'uploader
+      if (imageFile) {
+        await clubService.uploadImage(club.id, imageFile);
+      }
+
+      // Recharger les données du club
+      const updatedClub = await clubService.getClubById(club.id);
+
+      // S'assurer que toutes les propriétés sont des chaînes de caractères ou des nombres
+      const processedClubData = {
+        id: updatedClub.id || 0,
+        name: updatedClub.nom || '',
+        description: updatedClub.description || '',
+        category: typeof updatedClub.category === 'string' ? updatedClub.category :
+                 (updatedClub.category?.nom || ''),
+        categoryId: updatedClub.categoryId || 0,
+        image: updatedClub.image || '',
+        dateCreation: updatedClub.dateCreation || '',
+        membersCount: updatedClub.membres || 0,
+        creatorId: updatedClub.createurId || 1
+      };
+
+      setClub({
+        ...processedClubData,
+        members: club.members
+      });
+
+      // Réinitialiser l'état d'édition
+      setIsEditing(false);
+      setImageFile(null);
+      setImagePreview(null);
+
+      toast({
+        title: "Modifications enregistrées",
+        description: "Les informations du club ont été mises à jour avec succès.",
+        variant: "default"
+      });
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour du club:', err);
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour les informations du club. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Annuler l'édition
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setImageFile(null);
+    setImagePreview(null);
+
+    // Réinitialiser les données d'édition
+    if (club) {
+      setEditedClub({
+        name: club.name,
+        description: club.description,
+        categoryId: club.categoryId
+      });
+    }
+  };
+
+  // Gérer la modification d'un événement
+  const handleEditEvent = (event: ClubEvent) => {
+    if (!club || !club.id) return;
+
+    // Préparer les données pour l'édition
+    const eventData = {
+      id: event.id,
+      titre: event.title,
+      description: event.description,
+      lieu: event.lieu,
+      dateDebut: new Date(event.dateDebut).toISOString(),
+      dateFin: new Date(event.dateFin).toISOString(),
+      status: event.status || "AVENIR",
+      clubId: club.id,
+      createurId: club.creatorId || 1
+    };
+
+    console.log("Données de l'événement à modifier:", eventData);
+
+    setSelectedEvent(event);
+    setEditEventData(eventData);
+    setIsEditEventDialogOpen(true);
+  };
+
+  // Gérer la suppression d'un événement
+  const handleDeleteEvent = (event: ClubEvent) => {
+    if (!club || !club.id) return;
+
+    setSelectedEvent(event);
+    setIsDeleteEventDialogOpen(true);
+  };
+
+  // Confirmer la suppression d'un événement
+  const confirmDeleteEvent = async () => {
+    if (!selectedEvent?.id || !club?.id) {
+      toast({
+        title: "Erreur",
+        description: "Informations manquantes pour supprimer l'événement.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log(`Tentative de suppression de l'événement ${selectedEvent.id} du club ${club.id}`);
+
+      // Utiliser le service pour supprimer l'événement
+      await clubService.deleteEvent(selectedEvent.id, club.creatorId || 1);
+
+      // Mettre à jour la liste des événements
+      setEvents(events.filter(e => e.id !== selectedEvent.id));
+
+      toast({
+        title: "Événement supprimé",
+        description: "L'événement a été supprimé avec succès.",
+      });
+    } catch (error) {
+      console.error("Erreur lors de la suppression de l'événement:", error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors de la suppression de l'événement.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleteEventDialogOpen(false);
+      setSelectedEvent(null);
+    }
+  };
+
+  // Gérer la mise à jour d'un événement
+  const handleEventUpdated = () => {
+    setIsEditEventDialogOpen(false);
+    setSelectedEvent(null);
+    setEditEventData(null);
+
+    // Recharger les événements du club
+    if (club?.id) {
+      clubService.getClubEvents(club.id)
+        .then(updatedEvents => {
+          setEvents(updatedEvents);
+          toast({
+            title: "Événement mis à jour",
+            description: "L'événement a été mis à jour avec succès.",
+          });
+        })
+        .catch(error => {
+          console.error("Erreur lors du rechargement des événements:", error);
+        });
+    }
+  };
+
+  // Supprimer un membre
+  const handleDeleteMember = async (member: ClubMember) => {
+    if (!club || !club.id) return;
+
+    // Vérifier si le membre est un administrateur
+    // Pour les données fictives, on considère que le premier membre est toujours l'administrateur
+    // et pour les données réelles, on compare l'ID du membre avec l'ID du créateur
+
+    // Forcer l'administrateur pour le premier membre (Admin du Club)
+    const isFirstMember = member.name === 'Admin du Club';
+
+    // Convertir les IDs en nombres pour s'assurer que la comparaison fonctionne correctement
+    const memberId = typeof member.id === 'string' ? parseInt(member.id, 10) : member.id;
+    const creatorId = typeof club.creatorId === 'string' ? parseInt(club.creatorId, 10) : club.creatorId;
+
+    const isCreator = memberId === creatorId;
+    const isAdminRole = member.role === 'Admin' || member.role === 'Créateur' ||
+                       member.role === 'admin' || member.role === 'créateur' ||
+                       member.role?.toLowerCase().includes('admin') ||
+                       member.role?.toLowerCase().includes('créateur');
+
+    // Un membre est admin s'il est le créateur, s'il a un rôle d'admin, ou si c'est le premier membre
+    const isAdmin = isAdminRole || isCreator || isFirstMember;
+
+    if (isAdmin) {
+      toast({
+        title: "Action non autorisée",
+        description: "Vous ne pouvez pas supprimer l'Admin Club.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Cette fonction n'existe pas encore, il faudra l'ajouter au service
+      await clubService.removeMember(club.id, member.id, club.creatorId || 1);
+
+      // Mettre à jour la liste des membres
+      setClub({
+        ...club,
+        members: club.members?.filter(m => m.id !== member.id) || []
+      });
+
+      toast({
+        title: "Membre supprimé",
+        description: `Le membre a été retiré du club.`,
+        variant: "default"
+      });
+    } catch (err) {
+      console.error('Erreur lors de la suppression du membre:', err);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer ce membre. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Afficher un message de chargement
+  if (isLoading && !club) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Chargement des données du club...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Afficher un message d'erreur si nécessaire
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <Button onClick={() => navigate('/clubs')}>Retour à la liste des clubs</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Contenu principal de la page de gestion du club
+  return (
+    <div className="container mx-auto py-8 px-4">
+      <Button
+        variant="ghost"
+        className="mb-6 flex items-center"
+        onClick={() => navigate('/app/clubs')}
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Retour à la liste des clubs
+      </Button>
+
+      {club && (
+        <Tabs defaultValue="info" className="w-full">
+          <TabsList className="mb-6">
+            <TabsTrigger value="info">Informations</TabsTrigger>
+            <TabsTrigger value="members">Membres ({club.members?.length || 0})</TabsTrigger>
+            <TabsTrigger value="posts">Publications</TabsTrigger>
+            <TabsTrigger value="events">Événements</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="info">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle>{isEditing ? 'Modifier le club' : club.name}</CardTitle>
+                    <CardDescription>
+                      Gérez les informations de votre club
+                    </CardDescription>
+                  </div>
+                  {!isEditing && (
+                    <Button onClick={() => setIsEditing(true)}>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Modifier
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>

@@ -1,168 +1,754 @@
-
-import React, { useState } from 'react';
-import { Search, Plus } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
-
-// Components
+import { useEffect, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Settings, Home } from 'lucide-react';
+import FloatingActionButton from '@/components/clubs/FloatingActionButton';
 import ClubsHeader from '@/components/clubs/ClubsHeader';
 import ClubsList from '@/components/clubs/ClubsList';
 import CreateClubDialog from '@/components/clubs/CreateClubDialog';
 import ClubDetailsDialog from '@/components/clubs/ClubDetailsDialog';
-import FloatingActionButton from '@/components/clubs/FloatingActionButton';
+import ClubManagementPanel from '@/components/clubs/ClubManagementPanel';
 
-// Data
-import { initialClubs, categories } from '@/components/clubs/clubsData';
+import { clubService } from '@/services/clubService';
+import { categoryService } from '@/services/categoryService';
+import membreClubService, { RoleMembre } from '@/services/membreClubService';
+import { ClubDto, CategoryDto, CreateClubRequest } from '@/types/club';
+import useAuth from '@/hooks/useAuth';
+import { useToast } from '@/components/ui/use-toast';
+
+interface NewClub {
+  // Propriétés principales alignées avec ClubDto
+  nom: string;                // Nom du club
+  description: string;        // Description du club
+  categoryId?: number;        // ID de la catégorie sélectionnée
+  categoryName: string;       // Nom de la catégorie (pour l'affichage dans le formulaire)
+  image?: string;             // URL de l'image principale du club
+  banner?: string;            // URL de la bannière du club
+  dateCreation: string;       // Date de création du club
+  imageFile?: File | null;    // Fichier image pour l'upload (non stocké dans le DTO)
+
+  // Propriétés pour la compatibilité avec l'ancien code
+  // Ces propriétés seront mappées vers les propriétés principales lors de la conversion en ClubDto
+  name?: string;              // Alias pour nom (pour la compatibilité)
+  category?: string;          // Alias pour categoryName (pour la compatibilité)
+  coverPhoto?: string;        // Alias pour banner (pour la compatibilité)
+  profilePhoto?: string;      // Alias pour image (pour la compatibilité)
+}
+
+interface Club {
+  id: number;
+  name: string;
+  description: string;
+  members: number;
+  banner?: string;
+  image?: string;      // Ajout du champ image pour le logo
+  profilePhoto?: string; // Ajout du champ profilePhoto pour la compatibilité
+  category: string;
+  dateCreation?: string;  // Date de création du club
+  nextEvent?: string;  // Ajout du champ nextEvent optionnel
+  creatorId?: number;  // ID du créateur du club
+  createdAt?: string;  // Date de création (format alternatif)
+  isUserAdmin?: boolean; // Indique si l'utilisateur est admin de ce club
+  membersList?: any[]; // Liste des membres du club
+  events?: any[];      // Liste des événements du club
+  status?: string;     // État du club (accepté, en attente, refusé)
+  etat?: string;       // Alias pour status (pour la compatibilité)
+}
 
 const ClubsPage = () => {
-  const [clubs, setClubs] = useState(initialClubs);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('Tous');
-  const [isCreateClubOpen, setIsCreateClubOpen] = useState(false);
+  const { user, hasRole, roles } = useAuth();
+  const { toast } = useToast();
+
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [categories, setCategories] = useState<CategoryDto[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [joinedClubs, setJoinedClubs] = useState<number[]>([]);
-  const [selectedClub, setSelectedClub] = useState<boolean>(null);
-  const [isClubDetailOpen, setIsClubDetailOpen] = useState(false);
-  
-  // Form state for new club
-  const [newClub, setNewClub] = useState({
-    name: '',
+
+  // États pour la gestion des clubs
+  const [showMyClubs, setShowMyClubs] = useState<boolean>(false);
+  const [selectedClubForManagement, setSelectedClubForManagement] = useState<Club | null>(null);
+
+  // Vérifier les rôles de l'utilisateur
+  const isClubAdmin = hasRole('ROLE_ADMIN_CLUB');
+  const isModerator = roles?.includes('ROLE_MODERATEUR');
+
+  // Vérifier si l'utilisateur est modérateur pour l'accès à l'interface d'administration
+  useEffect(() => {
+    if (isModerator) {
+      console.log("L'utilisateur est un modérateur et peut accéder à l'interface d'administration des clubs");
+    }
+  }, [isModerator]);
+
+  // États pour le dialogue de détails du club
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  const [newClub, setNewClub] = useState<NewClub>({
+    nom: '',
     description: '',
-    category: 'Académique',
+    categoryName: '',
+    categoryId: undefined,
+    image: '',
+    banner: '',
+    dateCreation: '',
+    imageFile: null,
+    // Propriétés pour la compatibilité
+    name: '',
+    category: '',
     coverPhoto: '',
     profilePhoto: ''
   });
-  
-  const { toast } = useToast();
 
-  // Filter clubs based on search query and category
-  const filteredClubs = clubs.filter(club => {
-    const matchesQuery = club.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        club.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === 'Tous' || club.category === activeCategory;
-    
-    return matchesQuery && matchesCategory;
+
+
+  // Chargement de la liste des clubs depuis le backend
+  const fetchClubs = async () => {
+    try {
+      const data: ClubDto[] = await clubService.getAllClubs();
+      console.log('Clubs récupérés depuis l\'API:', data);
+
+      // Afficher les détails de chaque club pour le débogage
+      data.forEach((club, index) => {
+        console.log(`Club ${index + 1}:`, {
+          id: club.id,
+          nom: club.nom,
+          description: club.description,
+          createurId: club.createurId,
+          etat: club.etat
+        });
+
+        // Vérifier spécifiquement le club "allooo77"
+        if (club.nom === "allooo77") {
+          console.log("CLUB ALLOOO77 TROUVÉ:", {
+            id: club.id,
+            nom: club.nom,
+            etat: club.etat,
+            etatType: typeof club.etat,
+            createurId: club.createurId
+          });
+        }
+      });
+
+      // Transformation des DTOs en modèle local
+      const convertedClubs: Club[] = data.map(dto => {
+        // Récupérer le nom de la catégorie à partir de l'objet category ou categoryId
+        let categoryName = '';
+        if (dto.category && dto.category.nom) {
+          categoryName = dto.category.nom;
+        } else if (dto.categoryId) {
+          // Trouver la catégorie correspondante dans la liste des catégories
+          const category = categories.find(cat => cat.id === dto.categoryId);
+          if (category) {
+            categoryName = category.nom;
+          }
+        }
+
+        // Afficher les détails du club pour le débogage
+        console.log(`Club ${dto.id} (${dto.nom}) - membres:`, dto.membres);
+
+        // Vérifier si le champ membres est défini et est un nombre
+        let memberCount = 0;
+        if (dto.membres !== undefined && dto.membres !== null) {
+          memberCount = typeof dto.membres === 'number' ? dto.membres : parseInt(dto.membres, 10);
+          if (isNaN(memberCount)) {
+            console.warn(`Invalid member count for club ${dto.id} (${dto.nom}):`, dto.membres);
+            memberCount = 0;
+          }
+        }
+        console.log(`Club ${dto.id} (${dto.nom}) - memberCount after processing:`, memberCount);
+
+        return {
+          id: dto.id || 0,
+          name: dto.nom,
+          description: dto.description,
+          members: memberCount,
+          // Inclure à la fois l'image et la bannière
+          image: dto.image || dto.profilePhoto || '',
+          profilePhoto: dto.image || dto.profilePhoto || '',
+          banner: dto.banner || dto.coverPhoto || '',
+          category: categoryName,
+          // Ajouter la date de création
+          dateCreation: dto.dateCreation || '',
+          // Ajouter un champ nextEvent vide pour la compatibilité
+          nextEvent: '',
+          // Ajouter l'ID du créateur du club (utiliser l'ID de l'utilisateur connecté si createurId n'est pas défini)
+          creatorId: dto.createurId ? Number(dto.createurId) : (user?.id ? Number(user.id) : 1),
+          // isUserAdmin sera défini lors de l'ouverture des détails du club
+          isUserAdmin: false,
+          // Utiliser l'état réel du club avec plus de détails pour le débogage
+          status: dto.etat || 'en attente',
+          etat: dto.etat || 'en attente'
+        };
+      });
+
+      console.log('Clubs convertis:', convertedClubs);
+      setClubs(convertedClubs);
+    } catch (error) {
+      console.error('Erreur lors du chargement des clubs:', error);
+    }
+  };
+
+  // Chargement des catégories depuis le backend
+  const fetchCategories = async () => {
+    try {
+      console.log('Chargement des catégories depuis le backend...');
+      const data = await categoryService.getAllCategories();
+      console.log('Catégories récupérées:', data);
+
+      if (Array.isArray(data) && data.length > 0) {
+        // Vérifier si les données ont le bon format
+        const formattedCategories = data.map(cat => {
+          // S'assurer que chaque catégorie a un id et un nom
+          return {
+            id: cat.id || 0,
+            nom: cat.nom || cat.name || ''
+          };
+        }).filter(cat => cat.nom); // Filtrer les catégories sans nom
+
+        console.log('Catégories formatées:', formattedCategories);
+        setCategories(formattedCategories);
+      } else {
+        console.warn('Aucune catégorie trouvée ou format incorrect');
+        // Ajouter une catégorie par défaut si aucune n'est trouvée
+        setCategories([{ id: 1, nom: 'Général' }]);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des catégories:', error);
+      // Ajouter une catégorie par défaut en cas d'erreur
+      setCategories([{ id: 1, nom: 'Général' }]);
+    }
+  };
+
+  // Charger les clubs rejoints par l'utilisateur
+  const fetchJoinedClubs = async () => {
+    if (!user) return;
+
+    try {
+      const userId = Number(user.id);
+      console.log(`Fetching joined clubs for user ${userId}`);
+
+      // Récupérer tous les clubs
+      const allClubs = await clubService.getAllClubs();
+      console.log('All clubs:', allClubs);
+
+      // Pour chaque club, vérifier si l'utilisateur en est membre
+      const joinedClubIds: number[] = [];
+
+      for (const club of allClubs) {
+        try {
+          // Récupérer les membres du club
+          const members = await membreClubService.getClubMembers(club.id);
+          console.log(`Club ${club.id} members:`, members);
+
+          // Vérifier si l'utilisateur est membre du club
+          const isMember = members.some(member => member.userId === userId);
+
+          if (isMember) {
+            joinedClubIds.push(club.id);
+            console.log(`User ${userId} is a member of club ${club.id}`);
+          }
+        } catch (error) {
+          console.error(`Error checking membership for club ${club.id}:`, error);
+        }
+      }
+
+      console.log('Joined club IDs:', joinedClubIds);
+      setJoinedClubs(joinedClubIds);
+      console.log('Clubs rejoints par l\'utilisateur chargés');
+    } catch (error) {
+      console.error('Error fetching joined clubs:', error);
+    }
+  };
+
+  // Effet au montage : charger clubs et catégories (une seule fois)
+  useEffect(() => {
+    fetchClubs();
+    fetchCategories();
+  }, []);
+
+  // Effet séparé pour charger les clubs rejoints quand l'utilisateur change
+  useEffect(() => {
+    if (user) {
+      fetchJoinedClubs();
+    }
+  }, [user?.id]); // Dépendance sur user.id uniquement
+
+  // Création d’un nouveau club
+  const handleCreateClub = async () => {
+    setIsLoading(true);
+    try {
+      // Validation des champs obligatoires
+      if (!newClub.nom || !newClub.description || !newClub.categoryName || !newClub.dateCreation) {
+        console.error('Champs obligatoires manquants');
+        alert('Veuillez remplir tous les champs obligatoires');
+        setIsLoading(false);
+        return;
+      }
+
+      // Utiliser l'ID de la catégorie déjà stocké dans newClub.categoryId
+      // Si non disponible, essayer de le récupérer à partir du nom
+      let categoryId = newClub.categoryId;
+      if (!categoryId) {
+        const selectedCategory = categories.find(cat => cat.nom === newClub.categoryName);
+        if (selectedCategory) {
+          categoryId = selectedCategory.id;
+        } else {
+          console.warn('Catégorie non trouvée:', newClub.categoryName);
+        }
+      }
+
+      // Formater la date au format YYYY-MM-DD
+      let formattedDate = newClub.dateCreation;
+      if (formattedDate) {
+        try {
+          // Essayer de convertir la date en format YYYY-MM-DD
+          const date = new Date(formattedDate);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          formattedDate = `${year}-${month}-${day}`;
+        } catch (e) {
+          console.warn("Impossible de formater la date:", e);
+          // Utiliser une date par défaut
+          formattedDate = "2023-11-15"; // Comme dans Postman
+        }
+      } else {
+        // Si aucune date n'est fournie, utiliser une date par défaut
+        formattedDate = "2023-11-15"; // Comme dans Postman
+      }
+
+      // Convertir NewClub en CreateClubRequest (format exact attendu par le backend)
+      const createClubRequest: Partial<CreateClubRequest> = {
+        nom: newClub.nom,
+        description: newClub.description,
+        categoryId: typeof categoryId === 'string' ? parseInt(categoryId, 10) : categoryId,
+        dateCreation: formattedDate,
+        // Utiliser l'ID de l'utilisateur connecté comme créateur du club
+        createurId: user?.id ? Number(user.id) : 1
+      };
+
+      console.log('Envoi des données du club à l\'API:', createClubRequest);
+      const createdClub = await clubService.createClub(createClubRequest);
+      console.log('Club créé avec succès:', createdClub);
+
+      // Si nous avons une image (sous forme de fichier), l'uploader séparément
+      if (createdClub && createdClub.id && newClub.imageFile) {
+        try {
+          console.log('Uploading club image...');
+          console.log('Image file:', newClub.imageFile);
+
+          // Vérifier que le fichier est valide
+          if (newClub.imageFile instanceof File && newClub.imageFile.size > 0) {
+            console.log('Valid image file, uploading...');
+            console.log('File type:', newClub.imageFile.type);
+            console.log('File size:', newClub.imageFile.size);
+
+            // Uploader l'image
+            const imageUrl = await clubService.uploadImage(createdClub.id, newClub.imageFile);
+            console.log('Image uploaded successfully:', imageUrl);
+          } else {
+            console.warn('Invalid image file, skipping upload');
+          }
+        } catch (imageError) {
+          console.error('Error uploading club image:', imageError);
+          // Ne pas échouer la création du club si l'upload d'image échoue
+          alert('Le club a été créé mais l\'upload de l\'image a échoué. Vous pourrez ajouter une image plus tard.');
+        }
+      } else {
+        console.log('No image file to upload');
+      }
+
+      // Rafraîchir la liste des clubs
+      await fetchClubs();
+
+      // Fermer la boîte de dialogue et réinitialiser le formulaire
+      setIsCreateDialogOpen(false);
+      setNewClub({
+        nom: '',
+        description: '',
+        categoryName: '',
+        categoryId: undefined,
+        image: '',
+        banner: '',
+        dateCreation: '',
+        imageFile: null,
+        // Propriétés pour la compatibilité
+        name: '',
+        category: '',
+        coverPhoto: '',
+        profilePhoto: ''
+      });
+
+      // Afficher un message de succès
+      alert('Votre demande de création de club a été envoyée avec succès! Une fois approuvée par l\'administrateur, vous aurez accès à l\'interface d\'administration de votre club.');
+    } catch (error) {
+      console.error('Erreur lors de la création du club:', error);
+      alert('Erreur lors de la création du club. Veuillez réessayer.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Filtrer clubs selon recherche, catégorie active et état (accepté uniquement)
+  const filteredClubs = clubs.filter((club) => {
+    // Vérifier que club.name existe et est une chaîne de caractères
+    const clubName = club.name || '';
+    const clubCategory = club.category || '';
+    const clubStatus = club.status || club.etat || '';
+
+    // Afficher l'état de chaque club pour le débogage
+    console.log(`Club ${club.name} - État:`, clubStatus);
+
+    // N'afficher que les clubs acceptés - utiliser la valeur de l'énumération EtatClub.ACCEPTER
+    const isAccepted = clubStatus === 'ACCEPTER';
+
+    // Log détaillé pour le débogage
+    console.log(`Club ${club.name} - État: "${clubStatus}" - Est accepté: ${isAccepted}`);
+
+    // N'afficher que les clubs acceptés
+    return clubName.toLowerCase().includes(searchTerm.toLowerCase()) &&
+           (!activeCategory || clubCategory === activeCategory) &&
+           isAccepted;
   });
 
-  // Handle category change
-  const handleCategoryChange = (category: string) => {
-    setActiveCategory(category);
-  };
+  // Liste des clubs rejoints par l'utilisateur
+  const [joinedClubs, setJoinedClubs] = useState<number[]>([]);
 
-  // Handle search query change
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-  };
-
-  // Handle club creation with photo uploads
-  const handleCreateClub = () => {
-    if (!newClub.name || !newClub.description) {
+  // Gérer l'action de rejoindre ou quitter un club
+  const handleJoinClub = async (clubId: number) => {
+    if (!user) {
       toast({
-        title: "Champs requis",
-        description: "Veuillez remplir tous les champs obligatoires.",
-        variant: "destructive"
+        title: 'Connexion requise',
+        description: 'Vous devez être connecté pour rejoindre un club',
+        variant: 'destructive',
       });
       return;
     }
 
-    setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      const createdClub = {
-        id: clubs.length + 1,
-        name: newClub.name,
-        description: newClub.description,
-        members: 1,
-        banner: newClub.coverPhoto || '/placeholder.svg',
-        category: newClub.category,
-        nextEvent: 'Aucun événement planifié',
-        location: 'À déterminer',
-        createdAt: new Date().toISOString().split('T')[0],
-        membersList: [
-          { id: 1, name: 'Vous', role: 'Fondateur', avatar: newClub.profilePhoto || '/placeholder.svg' }
-        ]
-      };
-      
-      setClubs([createdClub, ...clubs]);
-      setJoinedClubs([...joinedClubs, createdClub.id]);
-      setIsLoading(false);
-      setIsCreateClubOpen(false);
-      
-      // Reset form
-      setNewClub({
-        name: '',
-        description: '',
-        category: 'Académique',
-        coverPhoto: '',
-        profilePhoto: ''
-      });
-      
-      toast({
-        title: "Club créé",
-        description: "Votre club a été créé avec succès !",
-      });
-    }, 1000);
-  };
+    try {
+      setIsLoading(true);
 
-  // Handle joining/leaving a club
-  const handleJoinClub = (clubId: number) => {
-    if (joinedClubs.includes(clubId)) {
-      setJoinedClubs(joinedClubs.filter(id => id !== clubId));
+      // Vérifier si l'utilisateur est déjà membre du club
+      const isAlreadyMember = joinedClubs.includes(clubId);
+
+      if (isAlreadyMember) {
+        try {
+          // Quitter le club - utiliser une API qui prend directement l'ID utilisateur
+          // au lieu de récupérer d'abord tous les membres
+          await membreClubService.removeMember(clubId, Number(user.id));
+
+          // Mettre à jour la liste des clubs rejoints localement sans refaire de requête
+          setJoinedClubs(prevJoinedClubs => prevJoinedClubs.filter(id => id !== clubId));
+
+          // Mettre à jour le nombre de membres du club
+          setClubs(prevClubs => prevClubs.map(club => {
+            if (club.id === clubId) {
+              // Décrémenter le nombre de membres
+              return { ...club, members: Math.max(0, (club.members || 0) - 1) };
+            }
+            return club;
+          }));
+
+          toast({
+            title: 'Club quitté',
+            description: 'Vous avez quitté le club avec succès',
+          });
+        } catch (error) {
+          console.error('Error leaving club:', error);
+
+          // Afficher un message d'erreur personnalisé en fonction du type d'erreur
+          let errorMessage = 'Une erreur est survenue lors de la tentative de quitter le club';
+
+          if (error.name === "ServerError") {
+            errorMessage = "Le serveur a rencontré une erreur. Veuillez réessayer plus tard.";
+          } else if (error.name === "NotFoundError") {
+            errorMessage = "Club ou utilisateur non trouvé.";
+          } else if (error.name === "NetworkError") {
+            errorMessage = "Problème de connexion au serveur. Vérifiez votre connexion internet.";
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+
+          toast({
+            title: 'Erreur',
+            description: errorMessage,
+            variant: 'destructive',
+          });
+        }
+      } else {
+        try {
+          // Rejoindre le club
+          await membreClubService.addMember(clubId, Number(user.id), RoleMembre.MEMBRE);
+
+          // Mettre à jour la liste des clubs rejoints localement sans refaire de requête
+          setJoinedClubs(prevJoinedClubs => [...prevJoinedClubs, clubId]);
+
+          // Mettre à jour le nombre de membres du club
+          setClubs(prevClubs => prevClubs.map(club => {
+            if (club.id === clubId) {
+              // Incrémenter le nombre de membres
+              return { ...club, members: (club.members || 0) + 1 };
+            }
+            return club;
+          }));
+
+          toast({
+            title: 'Club rejoint',
+            description: 'Vous avez rejoint le club avec succès',
+          });
+        } catch (error) {
+          console.error('Error joining club:', error);
+
+          // Afficher un message d'erreur personnalisé en fonction du type d'erreur
+          let errorMessage = 'Une erreur est survenue lors de la tentative de rejoindre le club';
+
+          if (error.name === "ServerError") {
+            errorMessage = "Le serveur a rencontré une erreur. Veuillez réessayer plus tard.";
+          } else if (error.name === "BadRequestError") {
+            errorMessage = "Requête invalide. Veuillez vérifier les informations fournies.";
+          } else if (error.name === "NotFoundError") {
+            errorMessage = "Club ou utilisateur non trouvé.";
+          } else if (error.name === "NetworkError") {
+            errorMessage = "Problème de connexion au serveur. Vérifiez votre connexion internet.";
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+
+          toast({
+            title: 'Erreur',
+            description: errorMessage,
+            variant: 'destructive',
+          });
+        }
+      }
+
+      // Ne pas rafraîchir toute la liste des clubs, c'est inutile et génère trop de requêtes
+    } catch (error) {
+      console.error('Error in club membership operation:', error);
       toast({
-        title: "Club quitté",
-        description: "Vous avez quitté ce club.",
+        title: 'Erreur',
+        description: 'Une erreur est survenue lors de l\'opération',
+        variant: 'destructive',
       });
-    } else {
-      setJoinedClubs([...joinedClubs, clubId]);
-      toast({
-        title: "Club rejoint",
-        description: "Vous avez rejoint ce club avec succès !",
-      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Handle opening club details
-  const handleClubDetailsOpen = (club) => {
-    setSelectedClub(club);
-    setIsClubDetailOpen(true);
-  };
+  // Filtrer tous les clubs créés par l'utilisateur (indépendamment de leur état)
+  const userCreatedClubs = clubs.filter(club => {
+    // Convertir les IDs en nombres pour une comparaison correcte
+    const creatorId = Number(club.creatorId);
+    const userId = Number(user?.id);
+    return creatorId === userId && !isNaN(creatorId) && !isNaN(userId);
+  });
+
+  // Filtrer les clubs dont l'utilisateur est le créateur ET qui ont été acceptés par l'ADMIN
+  const myClubs = userCreatedClubs.filter(club => {
+    const clubStatus = club.status || club.etat || '';
+
+    // Vérifier si le club a été accepté - utiliser la valeur de l'énumération EtatClub.ACCEPTER
+    const isAccepted = clubStatus === 'ACCEPTER';
+
+    // Log détaillé pour le débogage
+    console.log(`MY_CLUB - Club ${club.name} - État: "${clubStatus}" - Est accepté: ${isAccepted}`);
+
+    // N'afficher que les clubs acceptés
+    return isAccepted;
+  });
 
   return (
-    <div className="page-container">
-      <ClubsHeader 
-        categories={categories}
-        activeCategory={activeCategory}
-        onCategoryChange={handleCategoryChange}
-        searchQuery={searchQuery}
-        onSearchChange={handleSearchChange}
-      />
+    <div className="p-6 space-y-6">
 
-      <ClubsList 
-        clubs={filteredClubs}
-        joinedClubs={joinedClubs}
-        onJoinClub={handleJoinClub}
-        onClubDetailsOpen={handleClubDetailsOpen}
-        onCreateClubClick={() => setIsCreateClubOpen(true)}
-      />
+      {/* Titre et bouton de basculement */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="mb-8">
+        <h1 className="page-title">Clubs & Associations</h1>
+        <p className="page-subtitle">
+          Découvrez et rejoignez les clubs et associations du campus
+        </p>
+      </div>
 
-      <FloatingActionButton onClick={() => setIsCreateClubOpen(true)} />
+        {/* N'afficher le bouton MY_CLUB que si l'utilisateur a le rôle ADMIN_CLUB ou MODERATEUR ET a créé au moins un club */}
+        {(isClubAdmin || isModerator) && userCreatedClubs.length > 0 && (
+          <Button
+            variant={showMyClubs ? "default" : "outline"}
+            onClick={() => setShowMyClubs(!showMyClubs)}
+            className="mt-2 sm:mt-0"
+          >
+            {showMyClubs ? (
+              <>
+                <Home className="mr-2 h-4 w-4" />
+                Tous les Clubs
+              </>
+            ) : (
+              <>
+                <Settings className="mr-2 h-4 w-4" />
+                MY_CLUB
+              </>
+            )}
+          </Button>
+        )}
+      </div>
 
-      <CreateClubDialog 
-        open={isCreateClubOpen}
-        onOpenChange={setIsCreateClubOpen}
-        onCreateClub={handleCreateClub}
-        isLoading={isLoading}
-        newClub={newClub}
-        setNewClub={setNewClub}
-      />
-      
-      <ClubDetailsDialog 
-        open={isClubDetailOpen}
-        onOpenChange={setIsClubDetailOpen}
-        club={selectedClub}
-        isJoined={selectedClub ? joinedClubs.includes(selectedClub.id) : false}
-        onJoin={handleJoinClub}
-      />
+      {/* Afficher le panneau de gestion si un club est sélectionné pour la gestion */}
+      {selectedClubForManagement ? (
+        <ClubManagementPanel
+          club={selectedClubForManagement}
+          onClubUpdated={() => {
+            fetchClubs();
+            setSelectedClubForManagement(null);
+          }}
+          onClose={() => setSelectedClubForManagement(null)}
+        />
+      ) : (
+        <>
+          <ClubsHeader
+            categories={categories.map(c => c.nom)}
+            activeCategory={activeCategory}
+            onCategoryChange={setActiveCategory}
+            searchQuery={searchTerm}
+            onSearchChange={(e) => setSearchTerm(e.target.value)}
+          />
+
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <Input
+              placeholder="Rechercher un club..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-md"
+            />
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              Créer un club
+            </Button>
+          </div>
+
+          {/* Afficher un message si aucun club n'est trouvé dans la vue "Mes clubs" */}
+          {showMyClubs && myClubs.length === 0 && (
+            <div className="text-center py-8 bg-muted/20 rounded-lg mb-4">
+              <Settings className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Vous n'avez pas encore de clubs acceptés</h3>
+              <p className="text-muted-foreground mb-4">
+                Vous n'avez pas encore créé de club accepté par l'administrateur.
+              </p>
+              <Button onClick={() => setIsCreateDialogOpen(true)}>
+                Créer un club
+              </Button>
+            </div>
+          )}
+
+          <ClubsList
+            clubs={showMyClubs ? myClubs : filteredClubs}
+            joinedClubs={joinedClubs}
+            onJoinClub={handleJoinClub}
+            currentUserId={user?.id ? Number(user.id) : undefined}
+            onClubDetailsOpen={(club) => {
+              // Afficher les détails du club dans la console pour le débogage
+              console.log('Details', club);
+
+              // Vérifier si la date de création est présente
+              if (!club.dateCreation && club.createdAt) {
+                club.dateCreation = club.createdAt;
+              }
+
+              // Vérifier si l'utilisateur est le créateur du club
+              const creatorId = Number(club.creatorId);
+              const userId = Number(user?.id);
+              const isCreator = creatorId === userId && !isNaN(creatorId) && !isNaN(userId);
+
+              // Définir isUserAdmin à true si l'utilisateur est le créateur du club ET (a le rôle ADMIN_CLUB OU est un modérateur)
+              club.isUserAdmin = isCreator && (isClubAdmin || isModerator);
+
+              // Si l'utilisateur est le créateur du club ET est un modérateur, rediriger vers l'interface d'administration du club
+              if (isCreator && isModerator) {
+                // Rediriger vers l'interface d'administration du club
+                window.location.href = `/app/club-admin/${club.id}`;
+              }
+              // Sinon, si nous sommes en mode "Mes clubs", ouvrir le panneau de gestion intégré
+              else if (showMyClubs && isCreator && (isClubAdmin || isModerator)) {
+                // Ouvrir le panneau de gestion avec les informations du club
+                setSelectedClubForManagement({
+                  ...club,
+                  // isUserAdmin est déjà défini correctement plus haut
+                  // Ajouter des données fictives pour les membres et les événements
+                  membersList: [
+                    {
+                      id: 1,
+                      name: 'John Doe',
+                      email: 'john@example.com',
+                      joinDate: '2023-01-15',
+                      role: 'Admin Club'
+                    },
+                    {
+                      id: 2,
+                      name: 'Jane Smith',
+                      email: 'jane@example.com',
+                      joinDate: '2023-02-20',
+                      role: 'Membre'
+                    },
+                    {
+                      id: 3,
+                      name: 'Bob Johnson',
+                      email: 'bob@example.com',
+                      joinDate: '2023-03-10',
+                      role: 'Membre'
+                    }
+                  ],
+                  events: [
+                    {
+                      id: 1,
+                      title: 'Réunion mensuelle',
+                      description: 'Réunion mensuelle du club pour discuter des activités à venir.',
+                      date: '2023-05-15',
+                      location: 'Salle A',
+                      status: 'past'
+                    },
+                    {
+                      id: 2,
+                      title: 'Atelier de formation',
+                      description: 'Atelier de formation sur les nouvelles technologies.',
+                      date: '2023-06-20',
+                      location: 'Salle B',
+                      status: 'upcoming'
+                    }
+                  ]
+                });
+              } else {
+                // Sinon, ouvrir le dialogue de détails normal
+                setSelectedClub(club);
+                setIsDetailsDialogOpen(true);
+              }
+            }}
+            onCreateClubClick={() => setIsCreateDialogOpen(true)}
+          />
+
+          <FloatingActionButton onClick={() => setIsCreateDialogOpen(true)} />
+
+          <CreateClubDialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+            onClose={() => setIsCreateDialogOpen(false)}
+            onCreateClub={handleCreateClub}
+            onClubCreated={fetchClubs}
+            isLoading={isLoading}
+            newClub={newClub}
+            setNewClub={setNewClub}
+            categories={categories}
+          />
+
+          {/* Dialogue de détails du club */}
+          <ClubDetailsDialog
+            open={isDetailsDialogOpen}
+            onOpenChange={setIsDetailsDialogOpen}
+            club={selectedClub}
+            isJoined={selectedClub ? joinedClubs.includes(selectedClub.id) : false}
+            onJoin={handleJoinClub}
+            currentUserId={user?.id ? Number(user.id) : undefined}
+            onClubDeleted={fetchClubs}
+          />
+        </>
+      )}
     </div>
   );
 };

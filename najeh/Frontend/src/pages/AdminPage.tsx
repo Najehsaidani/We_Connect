@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { userService } from '@/services/userService';
 import { roleService } from '@/services/roleService';
 import { clubService } from '@/services/clubService';
@@ -582,6 +582,27 @@ const AdminPage = () => {
       if (newStatus === 'ACCEPTER') {
         updatedClub = await clubService.acceptClub(clubId);
         console.log("Club accepted successfully:", updatedClub);
+
+        // Si le club a été accepté, mettre à jour le rôle du créateur en modérateur
+        if (updatedClub && updatedClub.createurId) {
+          try {
+            // Mettre à jour le rôle du créateur en modérateur
+            const roleUpdateResult = await roleService.assignRole(updatedClub.createurId, "ROLE_MODERATEUR");
+            console.log("Creator role updated to MODERATOR:", roleUpdateResult);
+
+            toast({
+              title: 'Rôle mis à jour',
+              description: 'Le créateur du club est maintenant modérateur',
+            });
+          } catch (roleError) {
+            console.error("Error updating creator role:", roleError);
+            toast({
+              title: 'Avertissement',
+              description: 'Le club a été accepté mais le rôle du créateur n\'a pas pu être mis à jour',
+              variant: 'warning',
+            });
+          }
+        }
       } else if (newStatus === 'REFUSER') {
         updatedClub = await clubService.rejectClub(clubId);
         console.log("Club rejected successfully:", updatedClub);
@@ -2705,6 +2726,13 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
 
     console.log("Event to cancel:", eventToUpdate);
 
+    // Trouver l'événement à annuler pour obtenir son createurId
+    const eventToFind = clubEventToCancel || eventToCancel;
+
+    // Utiliser le createurId de l'événement ou l'ID 3 comme fallback
+    const creatorId = (eventToFind as any)?.creatorId || 3;
+    console.log(`Using creator ID ${creatorId} to cancel event ${eventId}`);
+
     // Prepare the update data with the correct field names
     const updateData = {
       titre: eventToUpdate.name,
@@ -2712,14 +2740,15 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
       lieu: eventToUpdate.location,
       dateDebut: eventToUpdate.eventDate,
       dateFin: eventToUpdate.eventDate, // Keep the same end date
-      status: "INACTIVE"
+      status: isClubEvent ? "ANNULE" : "INACTIVE" as any, // Use ANNULE for club events, INACTIVE for regular events
+      // Ajouter les champs nécessaires pour les événements de club
+      clubId: isClubEvent ? ((clubEventToCancel as any)?.clubId || 1) : undefined // Utiliser l'ID du club si c'est un événement de club
+      // Ne pas ajouter createurId dans le corps de la requête, il est déjà dans l'URL
     };
 
     console.log("Update data for cancellation:", updateData);
 
     // Mettre à jour le statut de l'événement avec le service approprié
-    // Use admin ID (1) as the creator ID for admin operations
-    const adminId = 1;
 
     let updatedEvent: {
       id: number;
@@ -2735,10 +2764,11 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
     };
 
     if (isClubEvent) {
-      const result = await eventsClubsService.updateEvent(eventId, updateData, adminId);
+      // Utiliser clubService au lieu de eventsClubsService
+      const result = await clubService.updateEvent(eventId, creatorId, updateData);
       updatedEvent = { id: result.id || eventId, ...result };
     } else {
-      const result = await EventsService.updateEvent(eventId, updateData, adminId);
+      const result = await EventsService.updateEvent(eventId, updateData, creatorId);
       updatedEvent = { id: result.id || eventId, ...result };
     }
 
@@ -2752,7 +2782,7 @@ const handleCancelEvent = async (eventId: number): Promise<void> => {
       location: updatedEvent.lieu || eventToUpdate.location,
       eventDate: updatedEvent.dateDebut || eventToUpdate.eventDate,
       date: updatedEvent.dateDebut || eventToUpdate.date,
-      status: "INACTIVE"
+      status: isClubEvent ? "ANNULE" : "INACTIVE" // Use ANNULE for club events, INACTIVE for regular events
     };
 
     // Mettre à jour l'état local approprié
@@ -2830,7 +2860,7 @@ const createEvent = async (eventData: {
       lieu: eventData.location,
       dateDebut: dateTime,
       dateFin: new Date(new Date(dateTime).getTime() + 3600000).toISOString(), // 1 hour after start
-      status: eventData.status || "AVENIR"
+      status: (eventData.status || "AVENIR") as any // Cast to any to avoid type errors
     };
 
     console.log("Create data:", createData);
@@ -2848,8 +2878,9 @@ const createEvent = async (eventData: {
 
     // If there's an image file, upload it
     let imageUrl = null;
-    if (eventData.imageFile) {
+    if (eventData.imageFile && newEvent && newEvent.id) {
       try {
+        console.log("Uploading image for event ID:", newEvent.id);
         imageUrl = await EventsService.uploadImage(newEvent.id, eventData.imageFile);
         console.log("Image uploaded successfully:", imageUrl);
       } catch (imageError) {
@@ -2859,6 +2890,12 @@ const createEvent = async (eventData: {
           description: "L'événement a été créé mais l'image n'a pas pu être téléchargée.",
         });
       }
+    } else if (eventData.imageFile && (!newEvent || !newEvent.id)) {
+      console.error("Cannot upload image: Event ID is undefined or null");
+      toast({
+        title: "Avertissement",
+        description: "L'événement a été créé mais l'image n'a pas pu être téléchargée car l'ID de l'événement est manquant.",
+      });
     }
 
     // Format the new event to match our UI format
@@ -4646,18 +4683,29 @@ const createEvent = async (eventData: {
               console.log("Is regular event:", isRegularEvent);
               console.log("Is club event:", isClubEvent);
 
-              // Use admin ID (1) as the creator ID for admin operations
-              const adminId = 1;
-
               try {
                 // Delete the event using the appropriate service
                 if (isClubEvent) {
-                  await eventsClubsService.deleteEvent(eventToDeleteId, adminId);
+                  // Trouver l'événement à supprimer pour obtenir son createurId
+                  const eventToDelete = allEventsClub.find(e => Number(e.id) === Number(eventToDeleteId));
+
+                  if (!eventToDelete) {
+                    throw new Error("Événement non trouvé");
+                  }
+
+                  // Utiliser le createurId de l'événement ou l'ID 3 comme fallback
+                  const creatorId = (eventToDelete as any).creatorId || 3;
+                  console.log(`Using creator ID ${creatorId} to delete event ${eventToDeleteId}`);
+
+                  // Utiliser clubService au lieu de eventsClubsService
+                  await clubService.deleteEvent(eventToDeleteId, creatorId);
 
                   // Update club events state
                   setAllEventsClub(allEventsClub.filter(event => Number(event.id) !== Number(eventToDeleteId)));
                   setFilteredEventsClubs(filteredEventsClubs.filter(event => Number(event.id) !== Number(eventToDeleteId)));
                 } else {
+                  // Utiliser l'ID 3 comme ID d'administrateur par défaut
+                  const adminId = 3;
                   await EventsService.deleteEvent(eventToDeleteId, adminId);
 
                   // Update regular events state

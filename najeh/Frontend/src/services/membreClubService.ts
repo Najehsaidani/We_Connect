@@ -156,10 +156,14 @@ class MembreClubService {
   async addMember(clubId: number, userId: number, role: RoleMembre): Promise<MembreClub> {
     try {
       console.log(`Adding member to club: clubId=${clubId}, userId=${userId}, role=${role}`);
-      const response = await apiClient.post(`/clubs/${clubId}/membres`, {
-        userId: Number(userId),
-        role: role
-      });
+
+      // Vérifier que les paramètres sont valides
+      if (!clubId || !userId) {
+        throw new Error("Club ID et User ID sont requis");
+      }
+
+      // Utiliser l'endpoint correct pour rejoindre un club
+      const response = await apiClient.post(`/clubs/${clubId}/inscription/${userId}`);
       console.log('Add member response:', response.data);
       return response.data;
     } catch (error) {
@@ -168,8 +172,32 @@ class MembreClubService {
       // Log more detailed error information
       if (error.response) {
         console.error('Error response:', error.response.status, error.response.data);
+
+        // Personnaliser le message d'erreur en fonction du code de statut
+        if (error.response.status === 500) {
+          const errorMessage = error.response.data?.message ||
+            "Une erreur interne s'est produite sur le serveur. Veuillez réessayer plus tard.";
+          const customError = new Error(errorMessage);
+          customError.name = "ServerError";
+          throw customError;
+        } else if (error.response.status === 400) {
+          const errorMessage = error.response.data?.message ||
+            "Requête invalide. Veuillez vérifier les données fournies.";
+          const customError = new Error(errorMessage);
+          customError.name = "BadRequestError";
+          throw customError;
+        } else if (error.response.status === 404) {
+          const errorMessage = error.response.data?.message ||
+            "Club ou utilisateur non trouvé.";
+          const customError = new Error(errorMessage);
+          customError.name = "NotFoundError";
+          throw customError;
+        }
       } else if (error.request) {
         console.error('No response received:', error.request);
+        const customError = new Error("Aucune réponse reçue du serveur. Veuillez vérifier votre connexion internet.");
+        customError.name = "NetworkError";
+        throw customError;
       } else {
         console.error('Error setting up request:', error.message);
       }
@@ -181,22 +209,59 @@ class MembreClubService {
   /**
    * Remove a member from a club
    * @param clubId - The ID of the club
-   * @param membreId - The ID of the member to remove
+   * @param userId - The ID of the user to remove
    * @returns Promise with void response
    */
-  async removeMember(clubId: number, membreId: number): Promise<void> {
+  async removeMember(clubId: number, userId: number): Promise<void> {
     try {
-      console.log(`Removing member from club: clubId=${clubId}, membreId=${membreId}`);
-      await apiClient.delete(`/clubs/${clubId}/membres/${membreId}`);
-      console.log(`Member ${membreId} removed from club ${clubId} successfully`);
+      console.log(`Removing member from club: clubId=${clubId}, userId=${userId}`);
+
+      // Vérifier que les paramètres sont valides
+      if (!clubId || !userId) {
+        throw new Error("Club ID et User ID sont requis");
+      }
+
+      // Utiliser l'endpoint correct pour quitter un club
+      await apiClient.delete(`/clubs/${clubId}/inscription/${userId}`);
+      console.log(`User ${userId} removed from club ${clubId} successfully`);
     } catch (error) {
       console.error('Error removing club member:', error);
 
       // Log more detailed error information
       if (error.response) {
         console.error('Error response:', error.response.status, error.response.data);
+
+        // Personnaliser le message d'erreur en fonction du code de statut
+        if (error.response.status === 500) {
+          const errorMessage = error.response.data?.message ||
+            "Une erreur interne s'est produite sur le serveur. Veuillez réessayer plus tard.";
+          const customError = new Error(errorMessage);
+          customError.name = "ServerError";
+          throw customError;
+        } else if (error.response.status === 400) {
+          const errorMessage = error.response.data?.message ||
+            "Requête invalide. Veuillez vérifier les données fournies.";
+          const customError = new Error(errorMessage);
+          customError.name = "BadRequestError";
+          throw customError;
+        } else if (error.response.status === 404) {
+          const errorMessage = error.response.data?.message ||
+            "Club ou utilisateur non trouvé.";
+          const customError = new Error(errorMessage);
+          customError.name = "NotFoundError";
+          throw customError;
+        } else if (error.response.status === 403) {
+          const errorMessage = error.response.data?.message ||
+            "Vous n'avez pas les droits nécessaires pour effectuer cette action.";
+          const customError = new Error(errorMessage);
+          customError.name = "ForbiddenError";
+          throw customError;
+        }
       } else if (error.request) {
         console.error('No response received:', error.request);
+        const customError = new Error("Aucune réponse reçue du serveur. Veuillez vérifier votre connexion internet.");
+        customError.name = "NetworkError";
+        throw customError;
       } else {
         console.error('Error setting up request:', error.message);
       }

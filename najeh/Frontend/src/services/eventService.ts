@@ -1,7 +1,8 @@
 import apiClient from '../services/api';
+import { EventStatus } from '@/types/event';
 
-// Define the Event interface to match the backend model
 export interface Event {
+  eventId: number;
   id?: number;
   titre: string;
   description: string;
@@ -10,13 +11,12 @@ export interface Event {
   dateFin: string;
   nomClub?: string;
   image?: string;
-  status?: string;
+  status?: EventStatus;
   nbParticipants?: number;
   createurId: number;
-  participants?: { id: number; userId: number; dateInscription: string; status: string }[]; // List of Participant objects
+  participants?: { id: number; userId: number; dateInscription: string; status: string }[];
 }
 
-// Define the Participant interface
 export interface Participant {
   id: number;
   userId: number;
@@ -27,22 +27,31 @@ export interface Participant {
   email?: string;
 }
 
-// Export the service object
 export const EventsService = {
-  // Get all events
   getAllEvents: async (): Promise<Event[]> => {
     try {
-      console.log('Fetching all events from /events');
-      const res = await apiClient.get('/events');
-      console.log('Events response:', res.data);
-      return res.data;
+      console.log('Fetching all events from API');
+      const res = await apiClient.get('/events', {
+        timeout: 15000,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (Array.isArray(res.data)) {
+        return res.data.map((event: any) => ({
+          ...event,
+          status: event.status === "ACTIF" ? "ACTIVE" : (event.status || "ACTIVE")
+        }));
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching events:', error);
-      return []; // Return empty array instead of throwing
+      return [];
     }
   },
 
-  // Search events
   searchEvents: async (searchTerm: string): Promise<Event[]> => {
     try {
       const res = await apiClient.get('/events/search', {
@@ -51,82 +60,45 @@ export const EventsService = {
       return res.data;
     } catch (error) {
       console.error('Error searching events:', error);
-      return []; // Return empty array instead of throwing
+      return [];
     }
   },
 
-  // Create an event
   createEvent: async (
     createurId: number,
     event: Partial<Omit<Event, 'id' | 'createurId'>>
   ): Promise<Event> => {
     try {
-      // Format the event data to match the backend model
       const eventData = {
         titre: event.titre || '',
         description: event.description || '',
         lieu: event.lieu || '',
         dateDebut: event.dateDebut || new Date().toISOString(),
-        dateFin: event.dateFin || new Date(new Date().getTime() + 3600000).toISOString(), // 1 hour later
-        status: event.status || 'AVENIR'
+        dateFin: event.dateFin || new Date(new Date().getTime() + 3600000).toISOString(),
+        status: "ACTIVE"
       };
 
-      console.log('Creating event with data:', eventData);
-      console.log('Creating event with createurId:', createurId);
-      console.log('JSON stringified data:', JSON.stringify(eventData));
-
-      // Make sure we're sending a proper JSON object, not a string
-      // Pass createurId as a request parameter
-      // Ensure all fields are properly defined and not null/undefined
-      const cleanedEventData = {
-        titre: eventData.titre || "",
-        description: eventData.description || "",
-        lieu: eventData.lieu || "",
-        dateDebut: eventData.dateDebut || new Date().toISOString(),
-        dateFin: eventData.dateFin || new Date(new Date().getTime() + 3600000).toISOString(),
-        status: eventData.status || "AVENIR"
-      };
-
-      console.log("Cleaned event data:", cleanedEventData);
-      console.log("JSON stringified data:", JSON.stringify(cleanedEventData));
-
-      const res = await apiClient.post(`/events/create?createurId=${createurId}`, cleanedEventData, {
+      const res = await apiClient.post(`/events/create?createurId=${createurId}`, eventData, {
+        timeout: 15000,
         headers: {
+          'Accept': 'application/json',
           'Content-Type': 'application/json'
         }
       });
-      console.log('Create event response:', res.data);
       return res.data;
     } catch (error) {
       console.error('Error creating event:', error);
-      if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        console.error('Error response data:', error.response.data);
-        console.error('Error response status:', error.response.status);
-        console.error('Error response headers:', error.response.headers);
-      } else if (error.request) {
-        // The request was made but no response was received
-        console.error('Error request:', error.request);
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        console.error('Error message:', error.message);
-      }
       throw error;
     }
   },
 
-  // Update an event
   updateEvent: async (
     id: number,
     updates: Partial<Omit<Event, 'id' | 'createurId'>>,
-    createurId: number = 1 // Default to admin ID if not provided
+    createurId: number = 1
   ): Promise<Event> => {
     try {
-      console.log(`Updating event ${id} with data:`, updates);
-      // Pass createurId as a request parameter
       const res = await apiClient.put(`/events/${id}?createurId=${createurId}`, updates);
-      console.log('Update event response:', res.data);
       return res.data;
     } catch (error) {
       console.error('Error updating event:', error);
@@ -134,28 +106,21 @@ export const EventsService = {
     }
   },
 
-  // Delete an event
   deleteEvent: async (
     id: number,
-    createurId: number = 1 // Default to admin ID if not provided
+    createurId: number = 1
   ): Promise<void> => {
     try {
-      console.log(`Deleting event ${id}`);
-      // Pass createurId as a request parameter
       await apiClient.delete(`/events/${id}?createurId=${createurId}`);
-      console.log(`Event ${id} deleted successfully`);
     } catch (error) {
       console.error('Error deleting event:', error);
       throw error;
     }
   },
 
-  // Get event participants
   getEventParticipants: async (id: number): Promise<Participant[]> => {
     try {
-      console.log(`Fetching participants for event ${id}`);
       const res = await apiClient.get(`/events/${id}/participants`);
-      console.log('Event participants response:', res.data);
       return res.data;
     } catch (error) {
       console.error('Error fetching event participants:', error);
@@ -163,10 +128,12 @@ export const EventsService = {
     }
   },
 
-  // Upload an image for an event
   uploadImage: async (id: number, file: File): Promise<string> => {
     try {
-      console.log(`Uploading image for event ${id}`);
+      if (!id || isNaN(id)) {
+        throw new Error('Invalid event ID for image upload');
+      }
+
       const formData = new FormData();
       formData.append('file', file);
 
@@ -175,7 +142,6 @@ export const EventsService = {
           'Content-Type': 'multipart/form-data'
         }
       });
-      console.log('Image upload response:', res.data);
       return res.data;
     } catch (error) {
       console.error('Error uploading event image:', error);
@@ -183,12 +149,9 @@ export const EventsService = {
     }
   },
 
-  // Remove an image from an event
   removeImage: async (id: number): Promise<boolean> => {
     try {
-      console.log(`Removing image from event ${id}`);
       const res = await apiClient.delete(`/events/${id}/image`);
-      console.log('Image removal response:', res.data);
       return res.data;
     } catch (error) {
       console.error('Error removing event image:', error);

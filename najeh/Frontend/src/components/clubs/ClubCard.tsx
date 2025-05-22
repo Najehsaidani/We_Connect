@@ -1,13 +1,24 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Users, Calendar, Info, Check, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { 
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipTrigger 
+  TooltipTrigger
 } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface ClubCardProps {
   club: {
@@ -15,31 +26,57 @@ interface ClubCardProps {
     name: string;
     description: string;
     members: number;
-    banner: string;
+    banner?: string;
+    image?: string;      // Ajout du champ image pour le logo
+    profilePhoto?: string; // Ajout du champ profilePhoto pour la compatibilité
     category: string;
-    nextEvent: string;
+    nextEvent?: string;
+    creatorId?: number;  // ID du créateur du club
+    isUserAdmin?: boolean; // Indique si l'utilisateur est admin de ce club
   };
   index: number;
   isJoined: boolean;
   onJoin: (clubId: number) => void;
   onOpenDetails: (club: any) => void;
+  currentUserId?: number; // ID de l'utilisateur connecté
 }
 
-const ClubCard = ({ club, index, isJoined, onJoin, onOpenDetails }: ClubCardProps) => {
+const ClubCard = ({ club, index, isJoined, onJoin, onOpenDetails, currentUserId }: ClubCardProps) => {
+  // Vérifier si l'utilisateur est le créateur du club
+  const isCreator = club.creatorId === currentUserId;
+  // État pour contrôler l'ouverture de la boîte de dialogue de confirmation
+  const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
+
+  // Fonction pour gérer l'action de quitter le club après confirmation
+  const handleLeaveClub = () => {
+    onJoin(club.id);
+    setIsLeaveDialogOpen(false);
+  };
+
+  // Ajouter des logs pour déboguer
+  console.log(`ClubCard - Club ${club.id} (${club.name}) - isJoined: ${isJoined}, isCreator: ${isCreator}, isUserAdmin: ${club.isUserAdmin}`);
+
   return (
-    <div 
+    <div
       className="bg-white rounded-xl overflow-hidden shadow-sm border border-border animate-fade-in card-hover"
       style={{ animationDelay: `${index * 0.1}s` }}
     >
-      <div 
-        className="h-32 bg-muted bg-cover bg-center"
-        style={{ backgroundImage: `url(${club.banner})` }}
-      >
-        <div className="w-full h-full flex items-center justify-center bg-gradient-to-t from-black/30 to-transparent p-4">
-          <h3 className="text-xl font-semibold text-white">{club.name}</h3>
+      <div className="h-32 bg-muted flex items-center justify-center">
+        <div className="flex flex-col items-center justify-center p-4 text-center">
+          {/* Afficher le logo du club s'il existe */}
+          {(club.image || club.profilePhoto) && (
+            <div className="w-16 h-16 rounded-full overflow-hidden mb-2 border-2 border-primary">
+              <img
+                src={club.image || club.profilePhoto || '/placeholder.svg'}
+                alt={`Logo de ${club.name}`}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
+          <h3 className="text-xl font-semibold">{club.name}</h3>
         </div>
       </div>
-      
+
       <div className="p-4">
         <div className="flex justify-between items-center mb-3">
           <span className="inline-flex items-center text-sm text-muted-foreground">
@@ -49,31 +86,70 @@ const ClubCard = ({ club, index, isJoined, onJoin, onOpenDetails }: ClubCardProp
             {club.category}
           </span>
         </div>
-        
+
         <p className="text-sm text-foreground mb-4 line-clamp-3">{club.description}</p>
-        
-        <div className="flex items-center text-xs text-muted-foreground mb-4">
-          <Calendar size={14} className="mr-1" />
-          <span>{club.nextEvent}</span>
-        </div>
-        
+
+        {/* Afficher l'événement à venir s'il existe */}
+        {club.nextEvent && (
+          <div className="flex items-center text-xs text-muted-foreground mb-4">
+            <Calendar size={14} className="mr-1" />
+            <span>{club.nextEvent}</span>
+          </div>
+        )}
+
         <div className="flex space-x-2">
-          <Button
-            variant={isJoined ? "destructive" : "default"}
-            size="sm"
-            className="flex-grow"
-            onClick={() => onJoin(club.id)}
-          >
-            {isJoined ? (
-              <>
-                <X size={16} className="mr-1" /> Quitter
-              </>
-            ) : (
-              <>
-                <Check size={16} className="mr-1" /> Rejoindre
-              </>
-            )}
-          </Button>
+          {/* Si l'utilisateur est le créateur/admin du club, afficher un bouton différent */}
+          {club.isUserAdmin || isCreator ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="flex-grow"
+              disabled={true}
+              title="En tant qu'admin du club, vous ne pouvez pas quitter le club"
+            >
+              <X size={16} className="mr-1" /> Admin du club
+            </Button>
+          ) : (
+            <>
+              {isJoined ? (
+                <div className="flex gap-2 flex-grow">
+                  <AlertDialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="flex-grow"
+                      >
+                        <X size={16} className="mr-1" /> Quitter le club
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Quitter le club</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Êtes-vous sûr de vouloir quitter le club "{club.name}" ?
+                          Vous perdrez votre statut de membre et devrez rejoindre à nouveau pour participer aux activités.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleLeaveClub}>Quitter</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex-grow"
+                  onClick={() => onJoin(club.id)}
+                >
+                  <Check size={16} className="mr-1" /> Rejoindre
+                </Button>
+              )}
+            </>
+          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

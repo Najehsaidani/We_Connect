@@ -250,7 +250,7 @@ const ForumPage = () => {
           content: newPostContent,
           category: newPostCategory,
           imageUrl: newPostImage,
-          userId: Number(localStorage.getItem('userId')),
+          userId: currentUserId,
           username: "Utilisateur Actuel",
           authorAvatar: "/placeholder.svg",
           likeCount: 0,
