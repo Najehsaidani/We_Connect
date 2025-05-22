@@ -151,7 +151,7 @@ const MainLayout = () => {
                   {link.name}
                 </Link>
               ))}
-              
+
               {isAuthenticated && (
                 <div className="flex justify-around py-2 border-t border-b border-muted my-2">
                   <NotificationCenter />
@@ -159,7 +159,7 @@ const MainLayout = () => {
                   <MessageSquare size={20} className="text-muted-foreground" />
                 </div>
               )}
-              
+
               {!isAuthenticated && (
                 <Link
                   to="/auth"
@@ -169,7 +169,7 @@ const MainLayout = () => {
                   Connexion
                 </Link>
               )}
-              
+
               {isAuthenticated && (
                 <>
                   <Link

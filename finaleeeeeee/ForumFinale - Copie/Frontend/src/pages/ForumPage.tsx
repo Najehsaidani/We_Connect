@@ -545,7 +545,7 @@ const ForumPage = () => {
       {/* Bouton flottant pour créer un post */}
       <button
         onClick={() => setIsCreatePostOpen(true)}
-        className="fixed bottom-8 right-8 bg-primary text-white p-4 rounded-full shadow-lg hover:bg-primary/90 transition-colors"
+        className="fixed bottom-8 left-8 bg-primary text-white p-4 rounded-full shadow-lg hover:bg-primary/90 transition-colors"
         aria-label="Créer une publication"
       >
         <Plus size={24} />

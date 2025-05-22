@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import CommentSystem from './CommentSystem';
+import UserProfilePopup from './UserProfilePopup';
 
 export interface Post {
   id: number;
@@ -38,6 +39,7 @@ const ForumPost = ({ post, onDelete, onEdit }: ForumPostProps) => {
   const [currentPost, setCurrentPost] = useState<Post>(post);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const { toast } = useToast();
 
   const handleLike = async () => {
@@ -239,7 +241,13 @@ const ForumPost = ({ post, onDelete, onEdit }: ForumPostProps) => {
             <AvatarFallback>{currentPost.username.charAt(0)}</AvatarFallback>
           </Avatar>
           <div>
-            <h3 className="font-medium">{currentPost.username}</h3>
+            <button
+              className="font-medium text-left hover:text-primary transition-colors"
+              onClick={() => setIsProfileOpen(true)}
+              aria-label={`Voir le profil de ${currentPost.username}`}
+            >
+              {currentPost.username}
+            </button>
             <p className="text-xs text-muted-foreground">{formatDate(currentPost.createdAt)}</p>
           </div>
         </div>
@@ -349,6 +357,13 @@ const ForumPost = ({ post, onDelete, onEdit }: ForumPostProps) => {
       <CommentSystem
         postId={currentPost.id}
         onCommentChange={refreshPostData}
+      />
+
+      {/* User Profile Popup */}
+      <UserProfilePopup
+        userId={currentPost.userId}
+        isOpen={isProfileOpen}
+        onOpenChange={setIsProfileOpen}
       />
     </div>
   );

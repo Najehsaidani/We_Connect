@@ -22,5 +22,19 @@
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Chatling Script - Ne s'exécute pas sur les pages admin -->
+    <script>
+      if (!window.location.pathname.includes('/acces/admin')) {
+        window.chtlConfig = { chatbotId: "2148528143" };
+        const script = document.createElement('script');
+        script.async = true;
+        script.dataset.id = "2148528143";
+        script.id = "chtl-script";
+        script.type = "text/javascript";
+        script.src = "https://chatling.ai/js/embed.js";
+        document.body.appendChild(script);
+      }
+    </script>
   </body>
 </html>

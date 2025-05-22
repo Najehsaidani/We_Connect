@@ -684,14 +684,7 @@ const EventsPage = () => {
         </div>
       )}
 
-      {/* Floating Action Button */}
-      <button
-        onClick={() => setIsCreateEventOpen(true)}
-        className="floating-action-button"
-        aria-label="Créer un événement"
-      >
-        <Plus size={24} />
-      </button>
+
 
       {/* Create Event Dialog */}
       <Dialog open={isCreateEventOpen} onOpenChange={setIsCreateEventOpen}>

@@ -4,7 +4,7 @@ import { Menu, X, User, LogOut, MessageSquare, ChevronDown } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast";
 import NotificationCenter from "@/components/NotificationCenter";
 import FriendSystem from "@/components/FriendSystem";
-import useAuth from "@/hooks/useAuth"; 
+import useAuth from "@/hooks/useAuth";
 import { authService } from '@/services/authService'; // Add this import
 
 const MainLayout = () => {
@@ -40,7 +40,7 @@ const MainLayout = () => {
   };
 
   const navLinks = [
-    
+
     { name: 'Forum', path: '/app/forum' },
     { name: 'Clubs', path: '/app/clubs' },
     { name: 'Événements', path: '/app/events' },
@@ -52,7 +52,7 @@ const MainLayout = () => {
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <nav className="container max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          
+
           <Link to="/app/forum" className="flex items-center">
             <span className="text-2xl font-bold bg-gradient-to-r from-forum-primary to-forum-secondary bg-clip-text text-transparent">
               We_Connect
@@ -145,7 +145,7 @@ const MainLayout = () => {
                   {link.name}
                 </Link>
               ))}
-              
+
               {isAuthenticated && (
                 <>
                   <div className="flex justify-around py-2 border-t border-b border-muted my-2">
@@ -168,7 +168,7 @@ const MainLayout = () => {
                   </button>
                 </>
               )}
-              
+
               {!isAuthenticated && (
                 <Link
                   to="/auth"
