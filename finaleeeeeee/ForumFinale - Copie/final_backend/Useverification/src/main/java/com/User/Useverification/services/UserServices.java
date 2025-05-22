@@ -1,8 +1,19 @@
 package com.User.Useverification.services;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
@@ -17,19 +28,15 @@ import com.User.Useverification.Model.entity.Role;
 import com.User.Useverification.Model.entity.User;
 import com.User.Useverification.Model.repository.RoleRepository;
 import com.User.Useverification.Model.repository.UserRepository;
+import com.User.Useverification.Request.ChangePasswordRequest;
 import com.User.Useverification.Request.LoginRequest;
 import com.User.Useverification.Request.RegisterRequest;
 import com.User.Useverification.Request.ResetPasswordRequest;
-import com.User.Useverification.Request.VerifRequest;
 import com.User.Useverification.Request.ResetRequest;
+import com.User.Useverification.Request.VerifRequest;
 import com.User.Useverification.Response.ResponseUser;
 import com.User.Useverification.Security.JwtTokenUtil;
 import com.User.Useverification.enums.Status;
-
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.nio.file.*;
 
 import lombok.RequiredArgsConstructor;
 
@@ -292,6 +299,36 @@ public class UserServices {
         userRepository.save(user);
 
         response.put("message", "Password reset successful");
+        return ResponseEntity.ok(response);
+    }
+
+    public ResponseEntity<Map<String, String>> changePassword(Long userId, ChangePasswordRequest changePasswordRequest) {
+        Map<String, String> response = new HashMap<>();
+
+        // Find user by ID
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            response.put("error", "User not found");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        // Verify current password
+        if (!passwordEncoder.matches(changePasswordRequest.getCurrentPassword(), user.getPassword())) {
+            response.put("error", "Current password is incorrect");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        // Check if new password and confirmation match
+        if (!changePasswordRequest.getNewPassword().equals(changePasswordRequest.getConfirmationPassword())) {
+            response.put("error", "New passwords do not match");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        // Update password
+        user.setPassword(passwordEncoder.encode(changePasswordRequest.getNewPassword()));
+        userRepository.save(user);
+
+        response.put("message", "Password changed successfully");
         return ResponseEntity.ok(response);
     }
 

@@ -1,17 +1,20 @@
 package com.User.Useverification.services.Interface;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
+
 import com.User.Useverification.Model.DTO.ProfileUpdateDTO;
 import com.User.Useverification.Model.DTO.UserDto;
+import com.User.Useverification.Request.ChangePasswordRequest;
 import com.User.Useverification.Request.LoginRequest;
 import com.User.Useverification.Request.RegisterRequest;
 import com.User.Useverification.Request.ResetPasswordRequest;
 import com.User.Useverification.Request.ResetRequest;
 import com.User.Useverification.Request.VerifRequest;
-import com.User.Useverification.Response.ResponseUser;
 
 public interface UserServices {
     ResponseEntity<?> registerUser(RegisterRequest registerRequest);
@@ -21,6 +24,7 @@ public interface UserServices {
     ResponseEntity<Map<String, String>> generateResetPasswordToken(String email);
     ResponseEntity<Map<String, String>> validateResetToken(ResetRequest resetRequest);
     ResponseEntity<Map<String, String>> resetPassword(ResetPasswordRequest resetPasswordRequest);
+    ResponseEntity<Map<String, String>> changePassword(Long userId, ChangePasswordRequest changePasswordRequest);
     ResponseEntity<?> updateUser(Long id, ProfileUpdateDTO userDto);
     String deleteUser(Long id);
     List<UserDto> getAllUsers();

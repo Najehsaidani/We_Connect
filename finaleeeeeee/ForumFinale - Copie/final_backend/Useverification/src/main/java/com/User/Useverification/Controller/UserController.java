@@ -1,19 +1,27 @@
 package com.User.Useverification.Controller;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.User.Useverification.Model.DTO.ProfileUpdateDTO;
 import com.User.Useverification.Model.DTO.UserDto;
 import com.User.Useverification.Model.entity.User;
-
+import com.User.Useverification.Request.ChangePasswordRequest;
 import com.User.Useverification.services.UserServices;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users/")
@@ -113,6 +121,19 @@ public class UserController {
     public ResponseEntity<Boolean> removeImage(@PathVariable Long userId) throws IOException {
         boolean removed = userService.removeImage(userId);
         return ResponseEntity.ok(removed);
+    }
+
+    @PostMapping("/{userId}/change-password")
+    public ResponseEntity<?> changePassword(
+            @PathVariable Long userId,
+            @RequestBody ChangePasswordRequest changePasswordRequest) {
+        try {
+            return userService.changePassword(userId, changePasswordRequest);
+        } catch (Exception e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Password change failed: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
 
 }

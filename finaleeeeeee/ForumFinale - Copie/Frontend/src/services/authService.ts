@@ -83,6 +83,15 @@ export const authService = {
     }
   },
 
+  changePassword: async (userId: number, passwordData: { currentPassword: string; newPassword: string; confirmationPassword: string }) => {
+    try {
+      const response = await apiClient.post(`/users/${userId}/change-password`, passwordData);
+      return response.data;
+    } catch (error) {
+      throw new Error(error.response?.data?.error || 'Password change failed');
+    }
+  },
+
   getUserData: () => {
     const token = localStorage.getItem('token');
     return decodeToken(token);
