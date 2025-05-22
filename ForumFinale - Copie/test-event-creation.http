@@ -1,0 +1,36 @@
+### Test Event Creation
+POST http://localhost:9191/api/events/create?createurId=1
+Content-Type: application/json
+
+{
+  "titre": "Test Event",
+  "description": "This is a test event to verify the fix",
+  "lieu": "Test Location",
+  "dateDebut": "2023-12-31T12:00:00.000Z",
+  "dateFin": "2023-12-31T14:00:00.000Z",
+  "status": "AVENIR"
+}
+
+### Test Event Creation with Minimal Data
+POST http://localhost:9191/api/events/create?createurId=1
+Content-Type: application/json
+
+{
+  "titre": "Minimal Test Event",
+  "description": "This is a test event with minimal data",
+  "lieu": "Test Location"
+}
+
+### Test Event Club Creation
+POST http://localhost:9191/api/eventsClubs/create?createurId=1
+Content-Type: application/json
+
+{
+  "titre": "Test Club Event",
+  "description": "This is a test club event to verify the fix",
+  "lieu": "Test Location",
+  "dateDebut": "2023-12-31T12:00:00.000Z",
+  "dateFin": "2023-12-31T14:00:00.000Z",
+  "clubId": 1,
+  "status": "AVENIR"
+}
